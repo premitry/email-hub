@@ -249,10 +249,8 @@ ${!domain.server_ip ? "\n> ⚠️ **Server IP belum di-set.** A record masih pla
       </div>
 
       {/* Rendered markdown */}
-      <div className="rounded-lg border bg-background p-4">
-        <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:mt-0 prose-table:text-xs prose-code:rounded prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:text-xs prose-code:before:content-none prose-code:after:content-none prose-th:text-left">
-          <ReactMarkdown>{markdown}</ReactMarkdown>
-        </div>
+      <div className="rounded-lg border bg-background p-4 text-sm [&_h2]:mb-3 [&_h2]:text-base [&_h2]:font-semibold [&_p]:mb-3 [&_p]:text-muted-foreground [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-border [&_th]:bg-muted [&_th]:px-2 [&_th]:py-1.5 [&_th]:text-left [&_th]:text-xs [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1.5 [&_td]:text-xs [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-xs [&_ul]:mt-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:text-xs [&_ul]:text-muted-foreground [&_blockquote]:mt-3 [&_blockquote]:rounded [&_blockquote]:border-l-4 [&_blockquote]:border-yellow-500 [&_blockquote]:bg-yellow-500/10 [&_blockquote]:px-3 [&_blockquote]:py-2 [&_blockquote]:text-xs">
+        <ReactMarkdown>{markdown}</ReactMarkdown>
       </div>
 
       {/* Copy buttons per record */}
