@@ -204,78 +204,112 @@ function DomainDetailInline({ domain }: { domain: any }) {
     }
   };
 
-  const markdown = `## DNS records — \`${domain.name}\`
+  // Auto-refresh DNS check every 15s in background (silent)
+  const runCheckRef = useRef(runCheck);
+  runCheckRef.current = runCheck;
+  useEffect(() => {
+    const t = setInterval(() => { runCheckRef.current(); }, 15000);
+    return () => clearInterval(t);
+  }, []);
 
-Set record berikut di DNS provider kamu (Cloudflare / Namecheap / dll).
+  const activeCount = records.filter((r) => results[`${r.host}-${r.type}`]?.ok).length;
+  const total = records.length;
+  const percent = Math.round((activeCount / total) * 100);
 
-| Status | Type | Host | Value |
-| --- | --- | --- | --- |
-${records.map((r) => {
-  const key = `${r.host}-${r.type}`;
-  const status = results[key];
-  const icon = status === undefined ? "⏳" : status.ok ? "✅" : "❌";
-  const val = r.priority !== undefined ? `\`${r.priority} ${r.value}\`` : `\`${r.value}\``;
-  return `| ${icon} | **${r.type}** | \`${r.host}\` | ${val} |`;
-}).join("\n")}
+  const statusOf = (r: DnsRow): "active" | "waiting" | "error" => {
+    const s = results[`${r.host}-${r.type}`];
+    if (s === undefined) return "waiting";
+    if (s.ok) return "active";
+    // error only if the A record is missing IP or DNS returned answers but wrong
+    if (r.type === "A" && !domain.server_ip) return "waiting";
+    return s.answers.length > 0 ? "error" : "waiting";
+  };
 
-${records.filter(r => r.note).map(r => `- **${r.type}** — ${r.note}`).join("\n")}
-${!domain.server_ip ? "\n> ⚠️ **Server IP belum di-set.** A record masih placeholder. Isi IP VPS di bawah supaya record valid." : ""}`;
+  const rowStyles: Record<string, string> = {
+    active: "bg-green-500/10 border-green-500/30",
+    waiting: "bg-yellow-500/10 border-yellow-500/30",
+    error: "bg-red-500/10 border-red-500/30",
+  };
+  const dotStyles: Record<string, string> = {
+    active: "bg-green-500",
+    waiting: "bg-yellow-500",
+    error: "bg-red-500",
+  };
+  const labelOf: Record<string, string> = {
+    active: "✓ Active",
+    waiting: "Waiting...",
+    error: "Error",
+  };
 
   return (
     <div className="border-t bg-muted/20 p-4 space-y-4">
+      {/* Domain */}
+      <div>
+        <Label className="text-xs font-semibold text-muted-foreground">Domain</Label>
+        <div className="mt-1 font-mono text-sm">{domain.name}</div>
+      </div>
+
+      <div className="border-t" />
+
       {/* Server IP setting */}
-      <div className="rounded-lg border bg-background p-3">
-        <Label className="text-xs font-semibold">Server IP (VPS)</Label>
-        <p className="mb-2 mt-1 text-xs text-muted-foreground">
-          Dipakai untuk A record <span className="font-mono">{domain.mx_hostname}</span>. Wajib supaya mailserver bisa di-resolve dari luar.
-        </p>
-        <div className="flex gap-2">
-          <Input value={ip} onChange={(e) => setIp(e.target.value)} placeholder="1.2.3.4" className="font-mono" />
+      <div>
+        <Label className="text-xs font-semibold text-muted-foreground">VPS IP Address</Label>
+        <div className="mt-1 flex gap-2">
+          <Input value={ip} onChange={(e) => setIp(e.target.value)} placeholder="103.xxx.xxx.xxx" className="font-mono" />
           <Button size="sm" onClick={() => saveIp.mutate()} disabled={saveIp.isPending || ip === (domain.server_ip ?? "")}>
             <Save className="h-4 w-4" /> Save
           </Button>
         </div>
       </div>
 
-      {/* DNS check controls */}
-      <div className="flex items-center justify-between">
-        <div className="text-xs text-muted-foreground">
-          {checking ? "Mengecek DNS..." : Object.keys(results).length ? `Terakhir dicek: ${Object.values(results).filter(r => r?.ok).length}/${records.length} valid` : "Belum dicek"}
+      <div className="border-t" />
+
+      {/* DNS Records */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs font-semibold text-muted-foreground">DNS Records</Label>
+          <span className="text-xs text-muted-foreground">{activeCount}/{total} Active</span>
         </div>
-        <Button size="sm" onClick={runCheck} disabled={checking}>
-          {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          Cek DNS
-        </Button>
-      </div>
+        <div className="flex items-center gap-3">
+          <Progress value={percent} className="h-2 flex-1" />
+          <span className="text-xs font-mono text-muted-foreground w-10 text-right">{percent}%</span>
+        </div>
 
-      {/* Rendered markdown */}
-      <div className="rounded-lg border bg-background p-4 text-sm [&_h2]:mb-3 [&_h2]:text-base [&_h2]:font-semibold [&_p]:mb-3 [&_p]:text-muted-foreground [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-border [&_th]:bg-muted [&_th]:px-2 [&_th]:py-1.5 [&_th]:text-left [&_th]:text-xs [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1.5 [&_td]:text-xs [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-xs [&_ul]:mt-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:text-xs [&_ul]:text-muted-foreground [&_blockquote]:mt-3 [&_blockquote]:rounded [&_blockquote]:border-l-4 [&_blockquote]:border-yellow-500 [&_blockquote]:bg-yellow-500/10 [&_blockquote]:px-3 [&_blockquote]:py-2 [&_blockquote]:text-xs">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
-      </div>
+        <div className="space-y-2">
+          {records.map((r) => {
+            const val = r.priority !== undefined ? `${r.priority} ${r.value}` : r.value;
+            const st = statusOf(r);
+            return (
+              <div
+                key={`${r.host}-${r.type}`}
+                className={`flex items-center gap-3 rounded-md border px-3 py-2 text-xs transition-colors duration-500 ${rowStyles[st]}`}
+              >
+                <span className={`h-2.5 w-2.5 rounded-full ${dotStyles[st]} transition-colors duration-500`} />
+                <Badge variant="outline" className="font-mono w-12 justify-center">{r.type}</Badge>
+                <span className="flex-1 truncate font-mono">{val}</span>
+                <span className="text-xs text-muted-foreground whitespace-nowrap">{labelOf[st]}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => { navigator.clipboard.writeText(val); toast.success(`${r.type} copied`); }}
+                  aria-label={`Copy ${r.type} value`}
+                >
+                  <Copy className="h-3 w-3" />
+                </Button>
+              </div>
+            );
+          })}
+        </div>
 
-      {/* Copy buttons per record */}
-      <div className="space-y-1">
-        {records.map((r) => {
-          const val = r.priority !== undefined ? `${r.priority} ${r.value}` : r.value;
-          const key = `${r.host}-${r.type}`;
-          const status = results[key];
-          return (
-            <button
-              key={key}
-              onClick={() => { navigator.clipboard.writeText(val); toast.success(`${r.type} copied`); }}
-              className="flex w-full items-center gap-2 rounded border bg-background px-3 py-2 text-left text-xs hover:bg-muted"
-            >
-              <span className="w-4">
-                {status === undefined ? null : status.ok ? <Check className="h-3.5 w-3.5 text-green-500" /> : <X className="h-3.5 w-3.5 text-destructive" />}
-              </span>
-              <Badge variant="outline" className="font-mono">{r.type}</Badge>
-              <span className="w-40 truncate font-mono text-muted-foreground">{r.host}</span>
-              <span className="flex-1 truncate font-mono">{val}</span>
-              <Copy className="h-3 w-3 text-muted-foreground" />
-            </button>
-          );
-        })}
+        <div className="flex justify-end">
+          <Button size="sm" onClick={runCheck} disabled={checking}>
+            {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            Check DNS
+          </Button>
+        </div>
       </div>
     </div>
   );
 }
+
