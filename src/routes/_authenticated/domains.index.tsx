@@ -159,17 +159,6 @@ function DomainsList() {
   );
 }
 
-function extractIpFromUrl(url: string | null | undefined): string | null {
-  if (!url) return null;
-  try {
-    const u = new URL(url.startsWith("http") ? url : `http://${url}`);
-    const host = u.hostname;
-    // IPv4 check
-    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return host;
-    return null;
-  } catch { return null; }
-}
-
 function DomainDetailInline({ domain }: { domain: any }) {
   const qc = useQueryClient();
   const checkFn = useServerFn(checkDnsRecord);
@@ -181,15 +170,23 @@ function DomainDetailInline({ domain }: { domain: any }) {
 
   const { data: agentCfg } = useQuery({
     queryKey: ["agent_configs"],
-    queryFn: async () => (await supabase.from("agent_configs").select("base_url").maybeSingle()).data,
+    queryFn: async () => (await supabase.from("agent_configs").select("detected_ip, last_ping_at, last_ping_ok").maybeSingle()).data,
+    refetchInterval: 30000,
   });
-  const agentIp = extractIpFromUrl(agentCfg?.base_url);
+  const agentIp = (agentCfg as any)?.detected_ip as string | null | undefined;
+  const agentFresh = agentCfg?.last_ping_at && (Date.now() - new Date(agentCfg.last_ping_at).getTime() < 5 * 60 * 1000);
 
-  // Auto-fill from agent IP on first load if domain has no IP
+  // Auto-fill & auto-save detected IP the first time it becomes available
   useEffect(() => {
-    if (!domain.server_ip && agentIp && !ip) setIp(agentIp);
+    if (!agentIp || !agentFresh) return;
+    if (domain.server_ip) return;
+    setIp(agentIp);
+    supabase.from("domains").update({ server_ip: agentIp }).eq("id", domain.id).then(() => {
+      qc.invalidateQueries({ queryKey: ["domains"] });
+      toast.success(`IP ${agentIp} auto-detected dari agent`);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentIp]);
+  }, [agentIp, agentFresh]);
 
   const records = buildRecords(domain.name, domain.mx_hostname, domain.server_ip);
 
