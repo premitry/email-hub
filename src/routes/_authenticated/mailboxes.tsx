@@ -106,10 +106,19 @@ function MailboxesPage() {
               </div>
               {!catchall && (
                 <div className="space-y-2">
-                  <Label>Local part</Label>
-                  <Input value={localPart} onChange={(e) => setLocalPart(e.target.value)} placeholder="catch" />
+                  <Label>Username</Label>
+                  <Input value={localPart} onChange={(e) => setLocalPart(e.target.value)} placeholder="imap" />
+                  <p className="text-xs text-muted-foreground">Ini bagian sebelum @domain.</p>
                 </div>
               )}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Password</Label>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setPassword(genPassword())}>Generate</Button>
+                </div>
+                <Input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Kosongkan untuk auto-generate" />
+                <p className="text-xs text-muted-foreground">Min. 6 karakter. Password akan ditampilkan setelah dibuat.</p>
+              </div>
             </div>
             <DialogFooter>
               <Button onClick={() => add.mutate()} disabled={!domainId || add.isPending}>Create</Button>
