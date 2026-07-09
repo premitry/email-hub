@@ -17,25 +17,31 @@ export type Database = {
       agent_configs: {
         Row: {
           base_url: string | null
+          detected_ip: string | null
           last_ping_at: string | null
           last_ping_ok: boolean | null
           owner_id: string
+          shared_secret_hash: string | null
           shared_secret_preview: string | null
           updated_at: string
         }
         Insert: {
           base_url?: string | null
+          detected_ip?: string | null
           last_ping_at?: string | null
           last_ping_ok?: boolean | null
           owner_id: string
+          shared_secret_hash?: string | null
           shared_secret_preview?: string | null
           updated_at?: string
         }
         Update: {
           base_url?: string | null
+          detected_ip?: string | null
           last_ping_at?: string | null
           last_ping_ok?: boolean | null
           owner_id?: string
+          shared_secret_hash?: string | null
           shared_secret_preview?: string | null
           updated_at?: string
         }
