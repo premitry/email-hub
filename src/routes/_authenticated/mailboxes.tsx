@@ -175,34 +175,26 @@ function MailboxesPage() {
           <p className="mt-2 text-sm text-muted-foreground">Belum ada mailbox.</p>
         </Card>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-2">
           {mailboxes.map((m: any) => {
             const email = `${m.local_part}@${m.domains?.name}`;
             return (
-              <Card key={m.id} className="p-4">
-                <div className="mb-3 flex items-start justify-between">
-                  <div>
-                    <div className="font-mono text-sm">{email}</div>
-                    {m.is_catchall && <Badge variant="secondary" className="mt-1">catch-all</Badge>}
-                  </div>
-                  <Button variant="ghost" size="icon" onClick={() => del.mutate(m.id)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-                <CredBlock title="IMAP (INCOMING MAIL)" rows={[
-                  { label: "Server", value: m.domains?.mx_hostname ?? "-" },
-                  { label: "Port", value: "993" },
-                  { label: "Security", value: "SSL/TLS" },
-                  { label: "Username", value: email },
-                  { label: "Password", value: m.password_preview ?? "—" },
-                ]} />
-              </Card>
+              <MailboxRow
+                key={m.id}
+                email={email}
+                host={m.domains?.mx_hostname ?? "-"}
+                password={m.password_preview ?? "—"}
+                catchall={m.is_catchall}
+                disabled={m.disabled}
+                onDelete={() => del.mutate(m.id)}
+              />
             );
           })}
         </div>
       )}
     </div>
   );
+
 }
 
 function copy(text: string, label = "Copied") {
