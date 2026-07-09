@@ -75,6 +75,32 @@ function SettingsPage() {
             <Input type="password" placeholder={cfg?.shared_secret_preview ? "(isi ulang untuk ganti)" : "generate di VPS lalu paste di sini"} value={secret} onChange={(e) => setSecret(e.target.value)} />
           </div>
           <Button onClick={() => save.mutate()}>Save</Button>
+
+          {cfg && (
+            <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+              <div className="text-xs font-semibold">Setup di VPS</div>
+              <p className="text-xs text-muted-foreground">
+                Agent di VPS harus ping endpoint ini tiap ~1 menit. IP publik VPS akan ke-detect otomatis dari request.
+              </p>
+              <pre className="overflow-x-auto rounded bg-background p-2 text-[11px] font-mono">
+{`# Jalankan di VPS (cron tiap menit):
+curl -X POST ${typeof window !== "undefined" ? window.location.origin : ""}/api/public/agent/ping \\
+  -H "Authorization: Bearer <SHARED_SECRET>" \\
+  -H "Content-Type: application/json" \\
+  -d '{"owner_id":"${cfg.owner_id}","base_url":"${cfg.base_url ?? "http://your-vps:8080"}"}'`}
+              </pre>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <div className="text-muted-foreground">Last ping</div>
+                  <div className="font-mono">{cfg.last_ping_at ? new Date(cfg.last_ping_at).toLocaleString() : "—"}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Detected IP</div>
+                  <div className="font-mono">{(cfg as any).detected_ip ?? "—"}</div>
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
