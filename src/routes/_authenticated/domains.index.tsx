@@ -159,6 +159,17 @@ function DomainsList() {
   );
 }
 
+function extractIpFromUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url.startsWith("http") ? url : `http://${url}`);
+    const host = u.hostname;
+    // IPv4 check
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return host;
+    return null;
+  } catch { return null; }
+}
+
 function DomainDetailInline({ domain }: { domain: any }) {
   const qc = useQueryClient();
   const checkFn = useServerFn(checkDnsRecord);
@@ -167,6 +178,18 @@ function DomainDetailInline({ domain }: { domain: any }) {
   const [checking, setChecking] = useState(false);
 
   useEffect(() => { setIp(domain.server_ip ?? ""); }, [domain.server_ip]);
+
+  const { data: agentCfg } = useQuery({
+    queryKey: ["agent_configs"],
+    queryFn: async () => (await supabase.from("agent_configs").select("base_url").maybeSingle()).data,
+  });
+  const agentIp = extractIpFromUrl(agentCfg?.base_url);
+
+  // Auto-fill from agent IP on first load if domain has no IP
+  useEffect(() => {
+    if (!domain.server_ip && agentIp && !ip) setIp(agentIp);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentIp]);
 
   const records = buildRecords(domain.name, domain.mx_hostname, domain.server_ip);
 
