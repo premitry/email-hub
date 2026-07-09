@@ -285,7 +285,8 @@ function DomainDetailInline({ domain }: { domain: any }) {
                 className={`flex items-center gap-3 rounded-md border px-3 py-2 text-xs transition-colors duration-500 ${rowStyles[st]}`}
               >
                 <span className={`h-2.5 w-2.5 rounded-full ${dotStyles[st]} transition-colors duration-500`} />
-                <Badge variant="outline" className="font-mono w-12 justify-center">{r.type}</Badge>
+                <Badge variant="outline" className="font-mono w-12 justify-center shrink-0">{r.type}</Badge>
+                <span className="w-40 truncate font-mono text-muted-foreground shrink-0">{r.host}</span>
                 <span className="flex-1 truncate font-mono">{val}</span>
                 <span className="text-xs text-muted-foreground whitespace-nowrap">{labelOf[st]}</span>
                 <Button
