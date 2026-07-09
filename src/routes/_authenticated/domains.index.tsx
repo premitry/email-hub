@@ -274,27 +274,29 @@ function DomainDetailInline({ domain }: { domain: any }) {
       <div>
         <div className="flex items-center justify-between">
           <Label className="text-xs font-semibold text-muted-foreground">VPS IP Address</Label>
-          {agentIp && agentIp !== ip && (
+          {agentIp && agentFresh && agentIp !== ip && (
             <button
               type="button"
               onClick={() => setIp(agentIp)}
               className="text-xs text-primary hover:underline"
             >
-              Use agent IP ({agentIp})
+              Use detected IP ({agentIp})
             </button>
           )}
         </div>
         <div className="mt-1 flex gap-2">
-          <Input value={ip} onChange={(e) => setIp(e.target.value)} placeholder="103.xxx.xxx.xxx" className="font-mono" />
+          <Input value={ip} onChange={(e) => setIp(e.target.value)} placeholder="Auto-detect dari agent..." className="font-mono" />
           <Button size="sm" onClick={() => saveIp.mutate()} disabled={saveIp.isPending || ip === (domain.server_ip ?? "")}>
             <Save className="h-4 w-4" /> Save
           </Button>
         </div>
-        {!agentIp && (
-          <p className="mt-1 text-xs text-muted-foreground">
-            Tip: isi <span className="font-mono">Agent base URL</span> di Settings (mis. <span className="font-mono">http://103.20.30.40:8080</span>) untuk auto-fill IP di sini.
-          </p>
-        )}
+        <p className="mt-1 text-xs text-muted-foreground">
+          {agentIp && agentFresh
+            ? <>✓ Terdeteksi otomatis dari agent VPS: <span className="font-mono">{agentIp}</span></>
+            : agentIp
+              ? <>⚠️ Agent belum ping baru-baru ini. IP terakhir: <span className="font-mono">{agentIp}</span></>
+              : <>⏳ Menunggu agent ping. Setup agent di <span className="font-mono">Settings</span> supaya IP terisi otomatis.</>}
+        </p>
       </div>
 
 
