@@ -148,16 +148,23 @@ function MailboxesPage() {
       </div>
 
       <Dialog open={!!created} onOpenChange={(o) => { if (!o) setCreated(null); }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle2 className="h-5 w-5 text-primary" />
               Mailbox Created Successfully
             </DialogTitle>
           </DialogHeader>
-          {created && <SuccessBody info={created} />}
+          {created && (
+            <SuccessBody
+              info={created}
+              onCreateAnother={() => { setCreated(null); setOpen(true); }}
+              onDone={() => setCreated(null)}
+            />
+          )}
         </DialogContent>
       </Dialog>
+
 
       {!mailboxes?.length ? (
         <Card className="p-8 text-center">
