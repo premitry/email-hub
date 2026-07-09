@@ -129,14 +129,14 @@ function MailboxesPage() {
 
       {created && (
         <Card className="border-primary/50 p-4">
-          <div className="mb-2 text-sm font-medium">IMAP credentials (simpan password ini — cuma sekali tampil)</div>
-          <div className="grid gap-2 font-mono text-xs">
-            <CredLine label="Host" value={created.host} />
-            <CredLine label="Port" value="993" />
-            <CredLine label="Security" value="TLS/SSL" />
-            <CredLine label="Username" value={created.email} />
-            <CredLine label="Password" value={created.password} />
-          </div>
+          <div className="mb-3 text-sm font-medium text-primary">✓ Mailbox berhasil dibuat — kredensial di bawah</div>
+          <CredBlock title="IMAP (INCOMING MAIL)" rows={[
+            { label: "Server", value: created.host },
+            { label: "Port", value: "993" },
+            { label: "Security", value: "SSL/TLS" },
+            { label: "Username", value: created.email },
+            { label: "Password", value: created.password },
+          ]} />
           <Button size="sm" variant="ghost" className="mt-3" onClick={() => setCreated(null)}>Tutup</Button>
         </Card>
       )}
@@ -147,35 +147,51 @@ function MailboxesPage() {
           <p className="mt-2 text-sm text-muted-foreground">Belum ada mailbox.</p>
         </Card>
       ) : (
-        <div className="space-y-2">
-          {mailboxes.map((m: any) => (
-            <Card key={m.id} className="flex items-center justify-between p-4">
-              <div>
-                <div className="font-mono text-sm">{m.local_part}@{m.domains?.name}</div>
-                <div className="text-xs text-muted-foreground">
-                  {m.is_catchall && <Badge variant="secondary" className="mr-1">catch-all</Badge>}
-                  Password: {m.password_preview ?? "—"}
+        <div className="space-y-4">
+          {mailboxes.map((m: any) => {
+            const email = `${m.local_part}@${m.domains?.name}`;
+            return (
+              <Card key={m.id} className="p-4">
+                <div className="mb-3 flex items-start justify-between">
+                  <div>
+                    <div className="font-mono text-sm">{email}</div>
+                    {m.is_catchall && <Badge variant="secondary" className="mt-1">catch-all</Badge>}
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => del.mutate(m.id)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
-              </div>
-              <Button variant="ghost" size="icon" onClick={() => del.mutate(m.id)}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </Card>
-          ))}
+                <CredBlock title="IMAP (INCOMING MAIL)" rows={[
+                  { label: "Server", value: m.domains?.mx_hostname ?? "-" },
+                  { label: "Port", value: "993" },
+                  { label: "Security", value: "SSL/TLS" },
+                  { label: "Username", value: email },
+                  { label: "Password", value: m.password_preview ?? "—" },
+                ]} />
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
 
-function CredLine({ label, value }: { label: string; value: string }) {
+function CredBlock({ title, rows }: { title: string; rows: { label: string; value: string }[] }) {
   return (
-    <div className="flex items-center gap-2 rounded bg-muted px-2 py-1">
-      <span className="w-20 text-muted-foreground">{label}</span>
-      <span className="flex-1 truncate">{value}</span>
-      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => { navigator.clipboard.writeText(value); toast.success("Copied"); }}>
-        <Copy className="h-3 w-3" />
-      </Button>
+    <div className="overflow-hidden rounded-lg border">
+      <div className="border-b bg-muted/50 px-4 py-2 text-xs font-semibold tracking-wide text-primary">{title}</div>
+      <div className="divide-y">
+        {rows.map((r) => (
+          <div key={r.label} className="grid grid-cols-[110px,1fr,auto] items-center gap-3 px-4 py-2.5 text-sm">
+            <span className="text-muted-foreground">{r.label}</span>
+            <span className="truncate font-mono">{r.value}</span>
+            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { navigator.clipboard.writeText(r.value); toast.success("Copied"); }}>
+              <Copy className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
