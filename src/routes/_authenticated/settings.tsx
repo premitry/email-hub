@@ -32,10 +32,16 @@ function SettingsPage() {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("Not signed in");
       const preview = secret ? secret.slice(0, 4) + "…" + secret.slice(-2) : cfg?.shared_secret_preview;
+      let secretHash: string | undefined;
+      if (secret) {
+        const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret));
+        secretHash = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+      }
       const { error } = await supabase.from("agent_configs").upsert({
         owner_id: u.user.id,
         base_url: baseUrl,
         shared_secret_preview: preview,
+        ...(secretHash ? { shared_secret_hash: secretHash } : {}),
         updated_at: new Date().toISOString(),
       }, { onConflict: "owner_id" });
       if (error) throw error;
