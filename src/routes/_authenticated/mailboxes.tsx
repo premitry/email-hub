@@ -277,21 +277,100 @@ function SuccessBody({
 
 
 
-function CredBlock({ title, rows }: { title: string; rows: { label: string; value: string }[] }) {
+function MailboxRow({
+  email,
+  host,
+  password,
+  catchall,
+  disabled,
+  onDelete,
+}: {
+  email: string;
+  host: string;
+  password: string;
+  catchall: boolean;
+  disabled: boolean;
+  onDelete: () => void;
+}) {
+  const [showSettings, setShowSettings] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+
+  const rows = [
+    { label: "Host", value: host },
+    { label: "Port", value: "993" },
+    { label: "Security", value: "SSL/TLS" },
+    { label: "Username", value: email },
+    { label: "Password", value: password },
+  ];
+  const imapText = rows.map((r) => `${r.label}: ${r.value}`).join("\n");
+
   return (
-    <div className="overflow-hidden rounded-lg border">
-      <div className="border-b bg-muted/50 px-4 py-2 text-xs font-semibold tracking-wide text-primary">{title}</div>
-      <div className="divide-y">
-        {rows.map((r) => (
-          <div key={r.label} className="grid grid-cols-[110px,1fr,auto] items-center gap-3 px-4 py-2.5 text-sm">
-            <span className="text-muted-foreground">{r.label}</span>
-            <span className="truncate font-mono">{r.value}</span>
-            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => copy(r.value)}>
-              <Copy className="h-3.5 w-3.5" />
+    <>
+      <Card className="p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="truncate font-mono text-sm">{email}</span>
+              {catchall && <Badge variant="secondary" className="shrink-0">catch-all</Badge>}
+              <Badge variant={disabled ? "outline" : "default"} className="shrink-0">
+                {disabled ? "Disabled" : "Active"}
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">IMAP mailbox</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <Button variant="outline" size="sm" onClick={() => setShowSettings(true)}>
+              View Settings
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => copy(email, "Email copied")}>
+              <Copy className="h-3.5 w-3.5" /> Copy Email
+            </Button>
+            <Button variant="ghost" size="icon" onClick={onDelete} title="Delete">
+              <Trash2 className="h-4 w-4" />
             </Button>
           </div>
-        ))}
-      </div>
-    </div>
+        </div>
+      </Card>
+
+      <Dialog open={showSettings} onOpenChange={setShowSettings}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="space-y-1">
+            <DialogTitle className="text-base">IMAP Settings</DialogTitle>
+            <div className="font-mono text-sm text-muted-foreground">{email}</div>
+          </DialogHeader>
+
+          <div className="overflow-hidden rounded-md border divide-y">
+            {rows.map((r) => {
+              const isPw = r.label === "Password";
+              const display = isPw && !showPw ? "•".repeat(Math.min(r.value.length, 16)) : r.value;
+              return (
+                <div key={r.label} className="grid grid-cols-[96px,1fr,auto] items-center gap-2 px-3 py-1.5">
+                  <span className="text-xs text-muted-foreground">{r.label}</span>
+                  <span className="truncate font-mono text-xs">{display}</span>
+                  <div className="flex items-center gap-0.5">
+                    {isPw && (
+                      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setShowPw((v) => !v)}>
+                        {showPw ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                      </Button>
+                    )}
+                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => copy(r.value)}>
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" size="sm" onClick={() => copy(imapText, "IMAP settings copied")}>
+              <Copy className="h-3.5 w-3.5" /> Copy All IMAP Settings
+            </Button>
+            <Button size="sm" onClick={() => setShowSettings(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
+
