@@ -232,19 +232,13 @@ function SuccessBody({
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">
-        Simpan password ini sekarang — hanya ditampilkan sekali.
-      </p>
-
-      <div className="space-y-1">
-        <div className="text-xs text-muted-foreground">Email</div>
-        <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-1.5">
-          <span className="truncate font-mono text-sm">{info.email}</span>
-          <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => copy(info.email, "Email copied")}>
-            <Copy className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      </div>
+      <DialogHeader className="space-y-1">
+        <DialogTitle className="flex items-center gap-2 text-base">
+          <CheckCircle2 className="h-4 w-4 text-primary" />
+          Mailbox Created
+        </DialogTitle>
+        <div className="font-mono text-sm text-muted-foreground">{info.email}</div>
+      </DialogHeader>
 
       <div className="space-y-1">
         <div className="text-xs text-muted-foreground">Password</div>
@@ -259,13 +253,14 @@ function SuccessBody({
             <Copy className="h-3.5 w-3.5" />
           </Button>
         </div>
+        <p className="text-[11px] text-muted-foreground">Password hanya ditampilkan sekali — simpan sekarang.</p>
       </div>
 
-      <div className="space-y-1">
-        <div className="text-xs font-medium text-muted-foreground">IMAP Connection</div>
+      <div className="space-y-1 pt-1">
+        <div className="text-xs font-medium">IMAP Settings</div>
         <div className="overflow-hidden rounded-md border divide-y">
           {rows.map((r) => (
-            <div key={r.label} className="grid grid-cols-[92px,1fr,auto] items-center gap-2 px-3 py-1.5 text-sm">
+            <div key={r.label} className="grid grid-cols-[96px,1fr,auto] items-center gap-2 px-3 py-1.5">
               <span className="text-xs text-muted-foreground">{r.label}</span>
               <span className="truncate font-mono text-xs">{r.value}</span>
               <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => copy(r.value)}>
@@ -276,22 +271,18 @@ function SuccessBody({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 pt-1">
-        <Button variant="outline" size="sm" className="flex-1" onClick={() => copy(imapText, "IMAP settings copied")}>
-          <Copy className="h-3.5 w-3.5" /> Copy All IMAP Settings
-        </Button>
-      </div>
-      <div className="flex gap-2">
-        <Button variant="outline" size="sm" className="flex-1" onClick={onCreateAnother}>
-          Create Another Mailbox
-        </Button>
-        <Button size="sm" className="flex-1" onClick={onDone}>
-          Done
-        </Button>
-      </div>
+      <Button variant="outline" size="sm" className="w-full" onClick={() => copy(imapText, "IMAP settings copied")}>
+        <Copy className="h-3.5 w-3.5" /> Copy All IMAP Settings
+      </Button>
+
+      <DialogFooter className="gap-2 sm:gap-2">
+        <Button variant="outline" size="sm" onClick={onCreateAnother}>Create Another</Button>
+        <Button size="sm" onClick={onDone}>Done</Button>
+      </DialogFooter>
     </div>
   );
 }
+
 
 
 function CredBlock({ title, rows }: { title: string; rows: { label: string; value: string }[] }) {
