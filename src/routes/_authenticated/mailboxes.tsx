@@ -74,11 +74,11 @@ function MailboxesPage() {
       resetForm();
     },
     onSuccess: () => {
-      setOpen(false);
       qc.invalidateQueries({ queryKey: ["mailboxes"] });
     },
     onError: (e: any) => toast.error(e.message),
   });
+
 
   const del = useMutation({
     mutationFn: async (id: string) => {
@@ -95,75 +95,78 @@ function MailboxesPage() {
           <h1 className="text-2xl font-semibold">Mailboxes</h1>
           <p className="text-sm text-muted-foreground">IMAP user untuk konek dari Outlook, Thunderbird, Apple Mail, Gmail, n8n, dll.</p>
         </div>
-        <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) resetForm(); }}>
+        <Dialog
+          open={open}
+          onOpenChange={(o) => {
+            setOpen(o);
+            if (!o) {
+              resetForm();
+              setCreated(null);
+            }
+          }}
+        >
           <DialogTrigger asChild><Button><Plus className="h-4 w-4" /> New mailbox</Button></DialogTrigger>
           <DialogContent className="sm:max-w-md">
-            <DialogHeader><DialogTitle>New Mailbox</DialogTitle></DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Domain</Label>
-                <Select value={domainId} onValueChange={setDomainId}>
-                  <SelectTrigger><SelectValue placeholder="Pilih domain" /></SelectTrigger>
-                  <SelectContent>
-                    {domains?.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Username</Label>
-                <div className="flex items-center gap-2">
-                  <Input value={localPart} onChange={(e) => setLocalPart(e.target.value)} placeholder="admin" />
-                  <span className="whitespace-nowrap text-sm text-muted-foreground">
-                    @{domains?.find((d) => d.id === domainId)?.name ?? "domain"}
-                  </span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Password</Label>
-                <div className="flex gap-2">
-                  <Input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Kosongkan untuk auto-generate" />
-                  <Button type="button" variant="outline" size="icon" onClick={() => setPassword(genPassword())} title="Generate">
-                    <RefreshCw className="h-4 w-4" />
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">Min. 6 karakter. Password hanya ditampilkan sekali setelah dibuat.</p>
-              </div>
-              <div className="rounded-lg border bg-muted/30 p-3">
-                <div className="flex items-start gap-2">
-                  <Checkbox id="catch" checked={catchall} onCheckedChange={(v) => setCatchall(!!v)} className="mt-0.5" />
-                  <div className="space-y-1">
-                    <Label htmlFor="catch" className="cursor-pointer">Set this mailbox as Catch-all</Label>
-                    <p className="text-xs text-muted-foreground">
-                      When enabled, this mailbox will receive emails sent to any unknown address on this domain.
-                    </p>
+            {!created ? (
+              <>
+                <DialogHeader><DialogTitle>New Mailbox</DialogTitle></DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Domain</Label>
+                    <Select value={domainId} onValueChange={setDomainId}>
+                      <SelectTrigger><SelectValue placeholder="Pilih domain" /></SelectTrigger>
+                      <SelectContent>
+                        {domains?.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Username</Label>
+                    <div className="flex items-center gap-2">
+                      <Input value={localPart} onChange={(e) => setLocalPart(e.target.value)} placeholder="admin" />
+                      <span className="whitespace-nowrap text-sm text-muted-foreground">
+                        @{domains?.find((d) => d.id === domainId)?.name ?? "domain"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Password</Label>
+                    <div className="flex gap-2">
+                      <Input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Kosongkan untuk auto-generate" />
+                      <Button type="button" variant="outline" size="icon" onClick={() => setPassword(genPassword())} title="Generate">
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Min. 6 karakter. Password hanya ditampilkan sekali setelah dibuat.</p>
+                  </div>
+                  <div className="rounded-lg border bg-muted/30 p-3">
+                    <div className="flex items-start gap-2">
+                      <Checkbox id="catch" checked={catchall} onCheckedChange={(v) => setCatchall(!!v)} className="mt-0.5" />
+                      <div className="space-y-1">
+                        <Label htmlFor="catch" className="cursor-pointer">Set this mailbox as Catch-all</Label>
+                        <p className="text-xs text-muted-foreground">
+                          When enabled, this mailbox will receive emails sent to any unknown address on this domain.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button onClick={() => add.mutate()} disabled={!domainId || add.isPending}>Create mailbox</Button>
-            </DialogFooter>
+                <DialogFooter>
+                  <Button onClick={() => add.mutate()} disabled={!domainId || add.isPending}>Create mailbox</Button>
+                </DialogFooter>
+              </>
+            ) : (
+              <SuccessBody
+                info={created}
+                onCreateAnother={() => setCreated(null)}
+                onDone={() => { setCreated(null); setOpen(false); }}
+              />
+            )}
           </DialogContent>
         </Dialog>
       </div>
 
-      <Dialog open={!!created} onOpenChange={(o) => { if (!o) setCreated(null); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-primary" />
-              Mailbox Created Successfully
-            </DialogTitle>
-          </DialogHeader>
-          {created && (
-            <SuccessBody
-              info={created}
-              onCreateAnother={() => { setCreated(null); setOpen(true); }}
-              onDone={() => setCreated(null)}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+
 
 
       {!mailboxes?.length ? (
@@ -229,19 +232,13 @@ function SuccessBody({
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">
-        Simpan password ini sekarang — hanya ditampilkan sekali.
-      </p>
-
-      <div className="space-y-1">
-        <div className="text-xs text-muted-foreground">Email</div>
-        <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-1.5">
-          <span className="truncate font-mono text-sm">{info.email}</span>
-          <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => copy(info.email, "Email copied")}>
-            <Copy className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      </div>
+      <DialogHeader className="space-y-1">
+        <DialogTitle className="flex items-center gap-2 text-base">
+          <CheckCircle2 className="h-4 w-4 text-primary" />
+          Mailbox Created
+        </DialogTitle>
+        <div className="font-mono text-sm text-muted-foreground">{info.email}</div>
+      </DialogHeader>
 
       <div className="space-y-1">
         <div className="text-xs text-muted-foreground">Password</div>
@@ -256,13 +253,14 @@ function SuccessBody({
             <Copy className="h-3.5 w-3.5" />
           </Button>
         </div>
+        <p className="text-[11px] text-muted-foreground">Password hanya ditampilkan sekali — simpan sekarang.</p>
       </div>
 
-      <div className="space-y-1">
-        <div className="text-xs font-medium text-muted-foreground">IMAP Connection</div>
+      <div className="space-y-1 pt-1">
+        <div className="text-xs font-medium">IMAP Settings</div>
         <div className="overflow-hidden rounded-md border divide-y">
           {rows.map((r) => (
-            <div key={r.label} className="grid grid-cols-[92px,1fr,auto] items-center gap-2 px-3 py-1.5 text-sm">
+            <div key={r.label} className="grid grid-cols-[96px,1fr,auto] items-center gap-2 px-3 py-1.5">
               <span className="text-xs text-muted-foreground">{r.label}</span>
               <span className="truncate font-mono text-xs">{r.value}</span>
               <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => copy(r.value)}>
@@ -273,22 +271,18 @@ function SuccessBody({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 pt-1">
-        <Button variant="outline" size="sm" className="flex-1" onClick={() => copy(imapText, "IMAP settings copied")}>
-          <Copy className="h-3.5 w-3.5" /> Copy All IMAP Settings
-        </Button>
-      </div>
-      <div className="flex gap-2">
-        <Button variant="outline" size="sm" className="flex-1" onClick={onCreateAnother}>
-          Create Another Mailbox
-        </Button>
-        <Button size="sm" className="flex-1" onClick={onDone}>
-          Done
-        </Button>
-      </div>
+      <Button variant="outline" size="sm" className="w-full" onClick={() => copy(imapText, "IMAP settings copied")}>
+        <Copy className="h-3.5 w-3.5" /> Copy All IMAP Settings
+      </Button>
+
+      <DialogFooter className="gap-2 sm:gap-2">
+        <Button variant="outline" size="sm" onClick={onCreateAnother}>Create Another</Button>
+        <Button size="sm" onClick={onDone}>Done</Button>
+      </DialogFooter>
     </div>
   );
 }
+
 
 
 function CredBlock({ title, rows }: { title: string; rows: { label: string; value: string }[] }) {
