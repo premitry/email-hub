@@ -26,8 +26,9 @@ function MailboxesPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [domainId, setDomainId] = useState("");
-  const [localPart, setLocalPart] = useState("catch");
-  const [catchall, setCatchall] = useState(true);
+  const [localPart, setLocalPart] = useState("");
+  const [password, setPassword] = useState("");
+  const [catchall, setCatchall] = useState(false);
   const [created, setCreated] = useState<{ email: string; password: string; host: string } | null>(null);
 
   const { data: domains } = useQuery({
@@ -42,22 +43,26 @@ function MailboxesPage() {
 
   const add = useMutation({
     mutationFn: async () => {
-      const pass = genPassword();
-      const preview = pass.slice(0, 4) + "…" + pass.slice(-2);
+      const pass = password.trim() || genPassword();
+      if (pass.length < 6) throw new Error("Password minimal 6 karakter");
       const dom = domains?.find((d) => d.id === domainId);
       if (!dom) throw new Error("Pilih domain");
+      const lp = catchall ? "*" : localPart.trim();
+      if (!catchall && !lp) throw new Error("Username tidak boleh kosong");
       const { error } = await supabase.from("mailboxes").insert({
         domain_id: domainId,
-        local_part: catchall ? "*" : localPart,
+        local_part: lp,
         is_catchall: catchall,
-        password_preview: preview,
+        password_preview: pass,
       });
       if (error) throw error;
       setCreated({
-        email: `${catchall ? "*" : localPart}@${dom.name}`,
+        email: `${lp}@${dom.name}`,
         password: pass,
         host: dom.mx_hostname,
       });
+      setLocalPart("");
+      setPassword("");
     },
     onSuccess: () => {
       setOpen(false);
