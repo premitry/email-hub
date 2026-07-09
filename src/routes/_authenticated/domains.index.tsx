@@ -9,11 +9,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { useEffect, useState } from "react";
-import { Plus, Globe, ChevronRight, Trash2, Copy, RefreshCw, Loader2, Check, X, Save } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { useEffect, useRef, useState } from "react";
+import { Plus, Globe, ChevronRight, Trash2, Copy, RefreshCw, Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 
 export const Route = createFileRoute("/_authenticated/domains/")({
   component: DomainsList,
