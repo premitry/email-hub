@@ -280,13 +280,15 @@ function SuccessBody({
 
 
 function MailboxRow({
+  id,
   email,
   host,
-  password,
+  password: initialPassword,
   catchall,
   disabled,
   onDelete,
 }: {
+  id: string;
   email: string;
   host: string;
   password: string;
@@ -294,8 +296,26 @@ function MailboxRow({
   disabled: boolean;
   onDelete: () => void;
 }) {
+  const qc = useQueryClient();
   const [showSettings, setShowSettings] = useState(false);
   const [showPw, setShowPw] = useState(false);
+  const [password, setPassword] = useState(initialPassword);
+
+  const resetPw = useMutation({
+    mutationFn: async () => {
+      const newPw = genPassword();
+      const { error } = await supabase.from("mailboxes").update({ password_preview: newPw }).eq("id", id);
+      if (error) throw error;
+      return newPw;
+    },
+    onSuccess: (newPw) => {
+      setPassword(newPw);
+      setShowPw(true);
+      toast.success("Password reset");
+      qc.invalidateQueries({ queryKey: ["mailboxes"] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
 
   const rows = [
     { label: "Host", value: host },
@@ -344,18 +364,30 @@ function MailboxRow({
           <div className="overflow-hidden rounded-md border divide-y">
             {rows.map((r) => {
               const isPw = r.label === "Password";
-              const display = isPw && !showPw ? "•".repeat(Math.min(r.value.length, 16)) : r.value;
+              const display = isPw && !showPw ? "•".repeat(Math.min(r.value.length, 12)) : r.value;
               return (
-                <div key={r.label} className="grid grid-cols-[96px,1fr,auto] items-center gap-2 px-3 py-1.5">
-                  <span className="text-xs text-muted-foreground">{r.label}</span>
-                  <span className="truncate font-mono text-xs">{display}</span>
-                  <div className="flex items-center gap-0.5">
+                <div key={r.label} className="flex items-center gap-2 px-3 py-1.5">
+                  <span className="w-20 shrink-0 text-xs text-muted-foreground">{r.label}</span>
+                  <span className="min-w-0 flex-1 truncate font-mono text-xs">{display}</span>
+                  <div className="flex shrink-0 items-center gap-0.5">
                     {isPw && (
-                      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setShowPw((v) => !v)}>
-                        {showPw ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                      </Button>
+                      <>
+                        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setShowPw((v) => !v)} title={showPw ? "Hide" : "Show"}>
+                          {showPw ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6"
+                          onClick={() => resetPw.mutate()}
+                          disabled={resetPw.isPending}
+                          title="Reset password"
+                        >
+                          <RefreshCw className={`h-3 w-3 ${resetPw.isPending ? "animate-spin" : ""}`} />
+                        </Button>
+                      </>
                     )}
-                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => copy(r.value)}>
+                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => copy(r.value)} title="Copy">
                       <Copy className="h-3 w-3" />
                     </Button>
                   </div>
@@ -375,4 +407,5 @@ function MailboxRow({
     </>
   );
 }
+
 
