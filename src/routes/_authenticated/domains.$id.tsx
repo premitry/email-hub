@@ -135,44 +135,54 @@ function DomainDetail() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          <pre className="overflow-x-auto rounded-lg border bg-muted/40 p-4 text-xs leading-relaxed font-mono">
-{`# DNS records untuk ${domain.name}
+          {!domain.server_ip && (
+            <div className="rounded border border-yellow-500/40 bg-yellow-500/10 p-3 text-xs">
+              Server IP belum di-set. A record akan pakai placeholder. Edit domain untuk isi IP VPS.
+            </div>
+          )}
+          <div className="relative">
+            <pre className="overflow-x-auto rounded-lg border bg-muted/40 p-4 text-xs leading-relaxed font-mono">
+{`# DNS records — ${domain.name}
+# Set di DNS provider kamu (Cloudflare / Namecheap / dll)
 
-| Status | Type | Host                          | Value
-| ------ | ---- | ----------------------------- | -----
 ${records.map((r) => {
   const key = `${r.host}-${r.type}`;
   const status = results[key];
-  const icon = status === undefined ? "·" : status.ok ? "✓" : "✗";
+  const icon = status === undefined ? "· " : status.ok ? "✓ " : "✗ ";
   const val = r.priority !== undefined ? `${r.priority} ${r.value}` : r.value;
-  return `| ${icon.padEnd(6)} | ${r.type.padEnd(4)} | ${r.host.padEnd(29)} | ${val}`;
-}).join("\n")}
+  return `${icon}${r.type.padEnd(5)} ${r.host.padEnd(28)} ${val}${r.note ? `\n         ↳ ${r.note}` : ""}`;
+}).join("\n\n")}
 `}
-          </pre>
-          <div className="space-y-2">
+            </pre>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute right-2 top-2"
+              onClick={() => {
+                const text = records.map((r) => {
+                  const val = r.priority !== undefined ? `${r.priority} ${r.value}` : r.value;
+                  return `${r.type}\t${r.host}\t${val}`;
+                }).join("\n");
+                navigator.clipboard.writeText(text);
+                toast.success("Semua record di-copy");
+              }}
+            >
+              <Copy className="h-3 w-3" /> Copy all
+            </Button>
+          </div>
+          <div className="space-y-1">
             {records.map((r) => {
-              const key = `${r.host}-${r.type}`;
-              const status = results[key];
+              const val = r.priority !== undefined ? `${r.priority} ${r.value}` : r.value;
               return (
-                <div key={key} className="flex items-center gap-2 text-xs">
-                  <span className="flex h-5 w-5 items-center justify-center">
-                    {status === undefined ? (
-                      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
-                    ) : status.ok ? (
-                      <Check className="h-3.5 w-3.5 text-green-500" />
-                    ) : (
-                      <X className="h-3.5 w-3.5 text-destructive" />
-                    )}
-                  </span>
+                <button
+                  key={`${r.host}-${r.type}-copy`}
+                  onClick={() => { navigator.clipboard.writeText(val); toast.success(`${r.type} value copied`); }}
+                  className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs hover:bg-muted"
+                >
                   <Badge variant="outline" className="font-mono">{r.type}</Badge>
-                  <span className="flex-1 truncate font-mono text-muted-foreground">{r.note}</span>
-                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { navigator.clipboard.writeText(r.value); toast.success("Copied"); }}>
-                    <Copy className="h-3 w-3" />
-                  </Button>
-                  {status && !status.ok && status.answers.length > 0 && (
-                    <span className="text-xs text-destructive">Terbaca: {status.answers.join(", ")}</span>
-                  )}
-                </div>
+                  <span className="flex-1 truncate font-mono text-muted-foreground">{val}</span>
+                  <Copy className="h-3 w-3 text-muted-foreground" />
+                </button>
               );
             })}
           </div>
