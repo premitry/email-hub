@@ -134,38 +134,44 @@ function DomainDetail() {
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          <pre className="overflow-x-auto rounded-lg border bg-muted/40 p-4 text-xs leading-relaxed font-mono">
+{`# DNS records untuk ${domain.name}
+
+| Status | Type | Host                          | Value
+| ------ | ---- | ----------------------------- | -----
+${records.map((r) => {
+  const key = `${r.host}-${r.type}`;
+  const status = results[key];
+  const icon = status === undefined ? "·" : status.ok ? "✓" : "✗";
+  const val = r.priority !== undefined ? `${r.priority} ${r.value}` : r.value;
+  return `| ${icon.padEnd(6)} | ${r.type.padEnd(4)} | ${r.host.padEnd(29)} | ${val}`;
+}).join("\n")}
+`}
+          </pre>
           <div className="space-y-2">
             {records.map((r) => {
               const key = `${r.host}-${r.type}`;
               const status = results[key];
               return (
-                <div key={key} className="grid grid-cols-[auto,80px,1fr,auto] items-center gap-3 rounded border p-3 text-sm">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full border">
+                <div key={key} className="flex items-center gap-2 text-xs">
+                  <span className="flex h-5 w-5 items-center justify-center">
                     {status === undefined ? (
-                      <span className="h-2 w-2 rounded-full bg-muted-foreground" />
+                      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
                     ) : status.ok ? (
-                      <Check className="h-3 w-3 text-green-500" />
+                      <Check className="h-3.5 w-3.5 text-green-500" />
                     ) : (
-                      <X className="h-3 w-3 text-destructive" />
+                      <X className="h-3.5 w-3.5 text-destructive" />
                     )}
-                  </div>
+                  </span>
                   <Badge variant="outline" className="font-mono">{r.type}</Badge>
-                  <div className="min-w-0">
-                    <div className="truncate font-mono text-xs">
-                      <span className="text-muted-foreground">{r.host}</span>
-                      {" → "}
-                      {r.priority !== undefined && <span className="text-muted-foreground">{r.priority} </span>}
-                      <span>{r.value}</span>
-                    </div>
-                    {r.note && <div className="text-xs text-muted-foreground">{r.note}</div>}
-                    {status && !status.ok && status.answers.length > 0 && (
-                      <div className="mt-1 text-xs text-destructive">Terbaca: {status.answers.join(", ")}</div>
-                    )}
-                  </div>
-                  <Button variant="ghost" size="icon" onClick={() => { navigator.clipboard.writeText(r.value); toast.success("Copied"); }}>
+                  <span className="flex-1 truncate font-mono text-muted-foreground">{r.note}</span>
+                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { navigator.clipboard.writeText(r.value); toast.success("Copied"); }}>
                     <Copy className="h-3 w-3" />
                   </Button>
+                  {status && !status.ok && status.answers.length > 0 && (
+                    <span className="text-xs text-destructive">Terbaca: {status.answers.join(", ")}</span>
+                  )}
                 </div>
               );
             })}
