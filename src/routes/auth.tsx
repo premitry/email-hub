@@ -13,9 +13,13 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
+// Username -> synthetic email (no real inbox needed, email confirmation is off)
+const USERNAME_DOMAIN = "mailcatch.local";
+const toEmail = (u: string) => `${u.trim().toLowerCase()}@${USERNAME_DOMAIN}`;
+
 function AuthPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -27,24 +31,37 @@ function AuthPage() {
 
   const doSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!username.trim()) return toast.error("Username wajib diisi");
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({ email: toEmail(username), password });
     setLoading(false);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error("Username atau password salah");
     navigate({ to: "/dashboard" });
   };
 
   const doSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!/^[a-zA-Z0-9_.-]{3,32}$/.test(username.trim())) {
+      return toast.error("Username 3-32 karakter, huruf/angka/._- saja");
+    }
     setLoading(true);
     const { error } = await supabase.auth.signUp({
-      email,
+      email: toEmail(username),
       password,
-      options: { emailRedirectTo: `${window.location.origin}/dashboard` },
     });
     setLoading(false);
     if (error) return toast.error(error.message);
-    toast.success("Akun dibuat. Cek email atau langsung sign in.");
+    // Auto-confirm is on — session is created immediately.
+    const { data } = await supabase.auth.getSession();
+    if (data.session) {
+      toast.success("Akun dibuat");
+      navigate({ to: "/dashboard" });
+    } else {
+      // Fallback: try sign in
+      const { error: sErr } = await supabase.auth.signInWithPassword({ email: toEmail(username), password });
+      if (sErr) return toast.error(sErr.message);
+      navigate({ to: "/dashboard" });
+    }
   };
 
   return (
@@ -66,12 +83,12 @@ function AuthPage() {
             <TabsContent value="signin">
               <form onSubmit={doSignIn} className="space-y-4 pt-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email-in">Email</Label>
-                  <Input id="email-in" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+                  <Label htmlFor="user-in">Username</Label>
+                  <Input id="user-in" autoComplete="username" required value={username} onChange={(e) => setUsername(e.target.value)} placeholder="admin" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="pass-in">Password</Label>
-                  <Input id="pass-in" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                  <Input id="pass-in" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>Sign in</Button>
               </form>
@@ -79,17 +96,21 @@ function AuthPage() {
             <TabsContent value="signup">
               <form onSubmit={doSignUp} className="space-y-4 pt-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email-up">Email</Label>
-                  <Input id="email-up" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+                  <Label htmlFor="user-up">Username</Label>
+                  <Input id="user-up" autoComplete="username" required value={username} onChange={(e) => setUsername(e.target.value)} placeholder="admin" />
+                  <p className="text-xs text-muted-foreground">3-32 karakter. Tanpa verifikasi email.</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="pass-up">Password</Label>
-                  <Input id="pass-up" type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} />
+                  <Input id="pass-up" type="password" autoComplete="new-password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} />
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>Create account</Button>
               </form>
             </TabsContent>
           </Tabs>
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            Lupa password? Login pakai akun lain lalu reset dari <span className="font-mono">Settings</span>.
+          </p>
         </CardContent>
       </Card>
     </div>
