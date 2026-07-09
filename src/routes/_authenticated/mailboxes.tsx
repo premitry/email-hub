@@ -95,75 +95,78 @@ function MailboxesPage() {
           <h1 className="text-2xl font-semibold">Mailboxes</h1>
           <p className="text-sm text-muted-foreground">IMAP user untuk konek dari Outlook, Thunderbird, Apple Mail, Gmail, n8n, dll.</p>
         </div>
-        <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) resetForm(); }}>
+        <Dialog
+          open={open}
+          onOpenChange={(o) => {
+            setOpen(o);
+            if (!o) {
+              resetForm();
+              setCreated(null);
+            }
+          }}
+        >
           <DialogTrigger asChild><Button><Plus className="h-4 w-4" /> New mailbox</Button></DialogTrigger>
           <DialogContent className="sm:max-w-md">
-            <DialogHeader><DialogTitle>New Mailbox</DialogTitle></DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Domain</Label>
-                <Select value={domainId} onValueChange={setDomainId}>
-                  <SelectTrigger><SelectValue placeholder="Pilih domain" /></SelectTrigger>
-                  <SelectContent>
-                    {domains?.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Username</Label>
-                <div className="flex items-center gap-2">
-                  <Input value={localPart} onChange={(e) => setLocalPart(e.target.value)} placeholder="admin" />
-                  <span className="whitespace-nowrap text-sm text-muted-foreground">
-                    @{domains?.find((d) => d.id === domainId)?.name ?? "domain"}
-                  </span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Password</Label>
-                <div className="flex gap-2">
-                  <Input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Kosongkan untuk auto-generate" />
-                  <Button type="button" variant="outline" size="icon" onClick={() => setPassword(genPassword())} title="Generate">
-                    <RefreshCw className="h-4 w-4" />
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">Min. 6 karakter. Password hanya ditampilkan sekali setelah dibuat.</p>
-              </div>
-              <div className="rounded-lg border bg-muted/30 p-3">
-                <div className="flex items-start gap-2">
-                  <Checkbox id="catch" checked={catchall} onCheckedChange={(v) => setCatchall(!!v)} className="mt-0.5" />
-                  <div className="space-y-1">
-                    <Label htmlFor="catch" className="cursor-pointer">Set this mailbox as Catch-all</Label>
-                    <p className="text-xs text-muted-foreground">
-                      When enabled, this mailbox will receive emails sent to any unknown address on this domain.
-                    </p>
+            {!created ? (
+              <>
+                <DialogHeader><DialogTitle>New Mailbox</DialogTitle></DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Domain</Label>
+                    <Select value={domainId} onValueChange={setDomainId}>
+                      <SelectTrigger><SelectValue placeholder="Pilih domain" /></SelectTrigger>
+                      <SelectContent>
+                        {domains?.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Username</Label>
+                    <div className="flex items-center gap-2">
+                      <Input value={localPart} onChange={(e) => setLocalPart(e.target.value)} placeholder="admin" />
+                      <span className="whitespace-nowrap text-sm text-muted-foreground">
+                        @{domains?.find((d) => d.id === domainId)?.name ?? "domain"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Password</Label>
+                    <div className="flex gap-2">
+                      <Input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Kosongkan untuk auto-generate" />
+                      <Button type="button" variant="outline" size="icon" onClick={() => setPassword(genPassword())} title="Generate">
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Min. 6 karakter. Password hanya ditampilkan sekali setelah dibuat.</p>
+                  </div>
+                  <div className="rounded-lg border bg-muted/30 p-3">
+                    <div className="flex items-start gap-2">
+                      <Checkbox id="catch" checked={catchall} onCheckedChange={(v) => setCatchall(!!v)} className="mt-0.5" />
+                      <div className="space-y-1">
+                        <Label htmlFor="catch" className="cursor-pointer">Set this mailbox as Catch-all</Label>
+                        <p className="text-xs text-muted-foreground">
+                          When enabled, this mailbox will receive emails sent to any unknown address on this domain.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button onClick={() => add.mutate()} disabled={!domainId || add.isPending}>Create mailbox</Button>
-            </DialogFooter>
+                <DialogFooter>
+                  <Button onClick={() => add.mutate()} disabled={!domainId || add.isPending}>Create mailbox</Button>
+                </DialogFooter>
+              </>
+            ) : (
+              <SuccessBody
+                info={created}
+                onCreateAnother={() => setCreated(null)}
+                onDone={() => { setCreated(null); setOpen(false); }}
+              />
+            )}
           </DialogContent>
         </Dialog>
       </div>
 
-      <Dialog open={!!created} onOpenChange={(o) => { if (!o) setCreated(null); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-primary" />
-              Mailbox Created Successfully
-            </DialogTitle>
-          </DialogHeader>
-          {created && (
-            <SuccessBody
-              info={created}
-              onCreateAnother={() => { setCreated(null); setOpen(true); }}
-              onDone={() => setCreated(null)}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+
 
 
       {!mailboxes?.length ? (
