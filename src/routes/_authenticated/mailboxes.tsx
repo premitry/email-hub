@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Copy, Trash2, Users, RefreshCw, CheckCircle2, Mail, Server, Key } from "lucide-react";
+import { Plus, Copy, Trash2, Users, RefreshCw, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -148,16 +148,23 @@ function MailboxesPage() {
       </div>
 
       <Dialog open={!!created} onOpenChange={(o) => { if (!o) setCreated(null); }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle2 className="h-5 w-5 text-primary" />
               Mailbox Created Successfully
             </DialogTitle>
           </DialogHeader>
-          {created && <SuccessBody info={created} />}
+          {created && (
+            <SuccessBody
+              info={created}
+              onCreateAnother={() => { setCreated(null); setOpen(true); }}
+              onDone={() => setCreated(null)}
+            />
+          )}
         </DialogContent>
       </Dialog>
+
 
       {!mailboxes?.length ? (
         <Card className="p-8 text-center">
@@ -200,74 +207,89 @@ function copy(text: string, label = "Copied") {
   toast.success(label);
 }
 
-function SuccessBody({ info }: { info: CreatedInfo }) {
+function SuccessBody({
+  info,
+  onCreateAnother,
+  onDone,
+}: {
+  info: CreatedInfo;
+  onCreateAnother: () => void;
+  onDone: () => void;
+}) {
+  const [showPw, setShowPw] = useState(false);
   const imapText = `IMAP\nHost: ${info.host}\nPort: 993\nEncryption: SSL/TLS\nUsername: ${info.username}\nPassword: ${info.password}`;
-  const allText = `Email: ${info.email}\n\n${imapText}`;
+
+  const rows = [
+    { label: "Host", value: info.host },
+    { label: "Port", value: "993" },
+    { label: "Encryption", value: "SSL/TLS" },
+    { label: "Username", value: info.username },
+    { label: "Password", value: info.password },
+  ];
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        Simpan password ini sekarang — password hanya ditampilkan satu kali.
+        Simpan password ini sekarang — hanya ditampilkan sekali.
       </p>
 
-      <FieldRow icon={<Mail className="h-4 w-4" />} label="Email" value={info.email} />
-      <FieldRow icon={<Key className="h-4 w-4" />} label="Password" value={info.password} mono />
-
-      <div className="overflow-hidden rounded-lg border">
-        <div className="flex items-center gap-2 border-b bg-muted/50 px-4 py-2 text-xs font-semibold tracking-wide text-primary">
-          <Server className="h-3.5 w-3.5" /> IMAP · CONNECTION SETTINGS
+      <div className="space-y-1">
+        <div className="text-xs text-muted-foreground">Email</div>
+        <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-1.5">
+          <span className="truncate font-mono text-sm">{info.email}</span>
+          <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => copy(info.email, "Email copied")}>
+            <Copy className="h-3.5 w-3.5" />
+          </Button>
         </div>
-        <div className="divide-y">
-          {[
-            { label: "Host", value: info.host },
-            { label: "Port", value: "993" },
-            { label: "Encryption", value: "SSL/TLS" },
-            { label: "Username", value: info.username },
-            { label: "Password", value: info.password },
-          ].map((r) => (
-            <div key={r.label} className="grid grid-cols-[110px,1fr,auto] items-center gap-3 px-4 py-2 text-sm">
-              <span className="text-muted-foreground">{r.label}</span>
-              <span className="truncate font-mono">{r.value}</span>
-              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => copy(r.value)}>
-                <Copy className="h-3.5 w-3.5" />
+      </div>
+
+      <div className="space-y-1">
+        <div className="text-xs text-muted-foreground">Password</div>
+        <div className="flex items-center gap-1 rounded-md border bg-muted/30 px-3 py-1.5">
+          <span className="flex-1 truncate font-mono text-sm">
+            {showPw ? info.password : "•".repeat(Math.min(info.password.length, 16))}
+          </span>
+          <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => setShowPw((v) => !v)}>
+            {showPw ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+          </Button>
+          <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => copy(info.password, "Password copied")}>
+            <Copy className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <div className="text-xs font-medium text-muted-foreground">IMAP Connection</div>
+        <div className="overflow-hidden rounded-md border divide-y">
+          {rows.map((r) => (
+            <div key={r.label} className="grid grid-cols-[92px,1fr,auto] items-center gap-2 px-3 py-1.5 text-sm">
+              <span className="text-xs text-muted-foreground">{r.label}</span>
+              <span className="truncate font-mono text-xs">{r.value}</span>
+              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => copy(r.value)}>
+                <Copy className="h-3 w-3" />
               </Button>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <Button variant="outline" size="sm" onClick={() => copy(info.email, "Email copied")}>
-          <Copy className="h-3.5 w-3.5" /> Copy Email
+      <div className="flex flex-wrap gap-2 pt-1">
+        <Button variant="outline" size="sm" className="flex-1" onClick={() => copy(imapText, "IMAP settings copied")}>
+          <Copy className="h-3.5 w-3.5" /> Copy All IMAP Settings
         </Button>
-        <Button variant="outline" size="sm" onClick={() => copy(info.password, "Password copied")}>
-          <Copy className="h-3.5 w-3.5" /> Copy Password
+      </div>
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" className="flex-1" onClick={onCreateAnother}>
+          Create Another Mailbox
         </Button>
-        <Button variant="outline" size="sm" onClick={() => copy(imapText, "IMAP settings copied")}>
-          <Copy className="h-3.5 w-3.5" /> Copy IMAP Settings
-        </Button>
-        <Button size="sm" onClick={() => copy(allText, "All settings copied")}>
-          <Copy className="h-3.5 w-3.5" /> Copy All Settings
+        <Button size="sm" className="flex-1" onClick={onDone}>
+          Done
         </Button>
       </div>
     </div>
   );
 }
 
-function FieldRow({ icon, label, value, mono }: { icon: React.ReactNode; label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="rounded-lg border p-3">
-      <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-        {icon} {label}
-      </div>
-      <div className="flex items-center justify-between gap-2">
-        <span className={`truncate text-sm ${mono ? "font-mono" : ""}`}>{value}</span>
-        <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => copy(value)}>
-          <Copy className="h-3.5 w-3.5" />
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 function CredBlock({ title, rows }: { title: string; rows: { label: string; value: string }[] }) {
   return (
