@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Copy, Trash2, Users } from "lucide-react";
+import { Plus, Copy, Trash2, Users, RefreshCw, CheckCircle2, Mail, Server, Key } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -22,6 +22,8 @@ function genPassword() {
   return Array.from({ length: 24 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
 }
 
+type CreatedInfo = { email: string; password: string; host: string; username: string };
+
 function MailboxesPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -29,7 +31,7 @@ function MailboxesPage() {
   const [localPart, setLocalPart] = useState("");
   const [password, setPassword] = useState("");
   const [catchall, setCatchall] = useState(false);
-  const [created, setCreated] = useState<{ email: string; password: string; host: string } | null>(null);
+  const [created, setCreated] = useState<CreatedInfo | null>(null);
 
   const { data: domains } = useQuery({
     queryKey: ["domains-list"],
@@ -41,14 +43,21 @@ function MailboxesPage() {
     queryFn: async () => (await supabase.from("mailboxes").select("*, domains(name, mx_hostname)").order("created_at", { ascending: false })).data ?? [],
   });
 
+  const resetForm = () => {
+    setDomainId("");
+    setLocalPart("");
+    setPassword("");
+    setCatchall(false);
+  };
+
   const add = useMutation({
     mutationFn: async () => {
       const pass = password.trim() || genPassword();
       if (pass.length < 6) throw new Error("Password minimal 6 karakter");
       const dom = domains?.find((d) => d.id === domainId);
       if (!dom) throw new Error("Pilih domain");
-      const lp = catchall ? "*" : localPart.trim();
-      if (!catchall && !lp) throw new Error("Username tidak boleh kosong");
+      const lp = localPart.trim();
+      if (!lp) throw new Error("Username tidak boleh kosong");
       const { error } = await supabase.from("mailboxes").insert({
         domain_id: domainId,
         local_part: lp,
@@ -60,9 +69,9 @@ function MailboxesPage() {
         email: `${lp}@${dom.name}`,
         password: pass,
         host: dom.mx_hostname,
+        username: `${lp}@${dom.name}`,
       });
-      setLocalPart("");
-      setPassword("");
+      resetForm();
     },
     onSuccess: () => {
       setOpen(false);
@@ -84,12 +93,12 @@ function MailboxesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Mailboxes</h1>
-          <p className="text-sm text-muted-foreground">IMAP user untuk konek dari Gmail / n8n / dll.</p>
+          <p className="text-sm text-muted-foreground">IMAP user untuk konek dari Outlook, Thunderbird, Apple Mail, Gmail, n8n, dll.</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) resetForm(); }}>
           <DialogTrigger asChild><Button><Plus className="h-4 w-4" /> New mailbox</Button></DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>New IMAP user</DialogTitle></DialogHeader>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader><DialogTitle>New Mailbox</DialogTitle></DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Domain</Label>
@@ -100,46 +109,55 @@ function MailboxesPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex items-center gap-2">
-                <Checkbox id="catch" checked={catchall} onCheckedChange={(v) => setCatchall(!!v)} />
-                <Label htmlFor="catch" className="cursor-pointer">Catch-all (semua alamat @domain)</Label>
-              </div>
-              {!catchall && (
-                <div className="space-y-2">
-                  <Label>Username</Label>
-                  <Input value={localPart} onChange={(e) => setLocalPart(e.target.value)} placeholder="imap" />
-                  <p className="text-xs text-muted-foreground">Ini bagian sebelum @domain.</p>
-                </div>
-              )}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Password</Label>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setPassword(genPassword())}>Generate</Button>
+                <Label>Username</Label>
+                <div className="flex items-center gap-2">
+                  <Input value={localPart} onChange={(e) => setLocalPart(e.target.value)} placeholder="admin" />
+                  <span className="whitespace-nowrap text-sm text-muted-foreground">
+                    @{domains?.find((d) => d.id === domainId)?.name ?? "domain"}
+                  </span>
                 </div>
-                <Input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Kosongkan untuk auto-generate" />
-                <p className="text-xs text-muted-foreground">Min. 6 karakter. Password akan ditampilkan setelah dibuat.</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Password</Label>
+                <div className="flex gap-2">
+                  <Input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Kosongkan untuk auto-generate" />
+                  <Button type="button" variant="outline" size="icon" onClick={() => setPassword(genPassword())} title="Generate">
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">Min. 6 karakter. Password hanya ditampilkan sekali setelah dibuat.</p>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <div className="flex items-start gap-2">
+                  <Checkbox id="catch" checked={catchall} onCheckedChange={(v) => setCatchall(!!v)} className="mt-0.5" />
+                  <div className="space-y-1">
+                    <Label htmlFor="catch" className="cursor-pointer">Set this mailbox as Catch-all</Label>
+                    <p className="text-xs text-muted-foreground">
+                      When enabled, this mailbox will receive emails sent to any unknown address on this domain.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
             <DialogFooter>
-              <Button onClick={() => add.mutate()} disabled={!domainId || add.isPending}>Create</Button>
+              <Button onClick={() => add.mutate()} disabled={!domainId || add.isPending}>Create mailbox</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
 
-      {created && (
-        <Card className="border-primary/50 p-4">
-          <div className="mb-3 text-sm font-medium text-primary">✓ Mailbox berhasil dibuat — kredensial di bawah</div>
-          <CredBlock title="IMAP (INCOMING MAIL)" rows={[
-            { label: "Server", value: created.host },
-            { label: "Port", value: "993" },
-            { label: "Security", value: "SSL/TLS" },
-            { label: "Username", value: created.email },
-            { label: "Password", value: created.password },
-          ]} />
-          <Button size="sm" variant="ghost" className="mt-3" onClick={() => setCreated(null)}>Tutup</Button>
-        </Card>
-      )}
+      <Dialog open={!!created} onOpenChange={(o) => { if (!o) setCreated(null); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-primary" />
+              Mailbox Created Successfully
+            </DialogTitle>
+          </DialogHeader>
+          {created && <SuccessBody info={created} />}
+        </DialogContent>
+      </Dialog>
 
       {!mailboxes?.length ? (
         <Card className="p-8 text-center">
@@ -177,6 +195,80 @@ function MailboxesPage() {
   );
 }
 
+function copy(text: string, label = "Copied") {
+  navigator.clipboard.writeText(text);
+  toast.success(label);
+}
+
+function SuccessBody({ info }: { info: CreatedInfo }) {
+  const imapText = `IMAP\nHost: ${info.host}\nPort: 993\nEncryption: SSL/TLS\nUsername: ${info.username}\nPassword: ${info.password}`;
+  const allText = `Email: ${info.email}\n\n${imapText}`;
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">
+        Simpan password ini sekarang — password hanya ditampilkan satu kali.
+      </p>
+
+      <FieldRow icon={<Mail className="h-4 w-4" />} label="Email" value={info.email} />
+      <FieldRow icon={<Key className="h-4 w-4" />} label="Password" value={info.password} mono />
+
+      <div className="overflow-hidden rounded-lg border">
+        <div className="flex items-center gap-2 border-b bg-muted/50 px-4 py-2 text-xs font-semibold tracking-wide text-primary">
+          <Server className="h-3.5 w-3.5" /> IMAP · CONNECTION SETTINGS
+        </div>
+        <div className="divide-y">
+          {[
+            { label: "Host", value: info.host },
+            { label: "Port", value: "993" },
+            { label: "Encryption", value: "SSL/TLS" },
+            { label: "Username", value: info.username },
+            { label: "Password", value: info.password },
+          ].map((r) => (
+            <div key={r.label} className="grid grid-cols-[110px,1fr,auto] items-center gap-3 px-4 py-2 text-sm">
+              <span className="text-muted-foreground">{r.label}</span>
+              <span className="truncate font-mono">{r.value}</span>
+              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => copy(r.value)}>
+                <Copy className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <Button variant="outline" size="sm" onClick={() => copy(info.email, "Email copied")}>
+          <Copy className="h-3.5 w-3.5" /> Copy Email
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => copy(info.password, "Password copied")}>
+          <Copy className="h-3.5 w-3.5" /> Copy Password
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => copy(imapText, "IMAP settings copied")}>
+          <Copy className="h-3.5 w-3.5" /> Copy IMAP Settings
+        </Button>
+        <Button size="sm" onClick={() => copy(allText, "All settings copied")}>
+          <Copy className="h-3.5 w-3.5" /> Copy All Settings
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function FieldRow({ icon, label, value, mono }: { icon: React.ReactNode; label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="rounded-lg border p-3">
+      <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+        {icon} {label}
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className={`truncate text-sm ${mono ? "font-mono" : ""}`}>{value}</span>
+        <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => copy(value)}>
+          <Copy className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function CredBlock({ title, rows }: { title: string; rows: { label: string; value: string }[] }) {
   return (
     <div className="overflow-hidden rounded-lg border">
@@ -186,7 +278,7 @@ function CredBlock({ title, rows }: { title: string; rows: { label: string; valu
           <div key={r.label} className="grid grid-cols-[110px,1fr,auto] items-center gap-3 px-4 py-2.5 text-sm">
             <span className="text-muted-foreground">{r.label}</span>
             <span className="truncate font-mono">{r.value}</span>
-            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { navigator.clipboard.writeText(r.value); toast.success("Copied"); }}>
+            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => copy(r.value)}>
               <Copy className="h-3.5 w-3.5" />
             </Button>
           </div>
