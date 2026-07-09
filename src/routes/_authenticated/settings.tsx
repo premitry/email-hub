@@ -73,6 +73,16 @@ function SettingsPage() {
       </Card>
 
       <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Reset password</CardTitle>
+          <p className="text-xs text-muted-foreground">Ganti password akun yang sedang login.</p>
+        </CardHeader>
+        <CardContent>
+          <ResetPasswordForm />
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader><CardTitle className="text-base">Info</CardTitle></CardHeader>
         <CardContent className="space-y-2 text-sm text-muted-foreground">
           <p>• Panel Fase 1: semua data disimpan di database. Belum konek ke mail server sungguhan.</p>
@@ -81,5 +91,37 @@ function SettingsPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function ResetPasswordForm() {
+  const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pw.length < 6) return toast.error("Password minimal 6 karakter");
+    if (pw !== pw2) return toast.error("Konfirmasi password tidak cocok");
+    setLoading(true);
+    const { error } = await supabase.auth.updateUser({ password: pw });
+    setLoading(false);
+    if (error) return toast.error(error.message);
+    toast.success("Password berhasil diganti");
+    setPw(""); setPw2("");
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-4 max-w-sm">
+      <div className="space-y-2">
+        <Label>Password baru</Label>
+        <Input type="password" value={pw} onChange={(e) => setPw(e.target.value)} minLength={6} required />
+      </div>
+      <div className="space-y-2">
+        <Label>Ulangi password</Label>
+        <Input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} minLength={6} required />
+      </div>
+      <Button type="submit" disabled={loading}>Ganti password</Button>
+    </form>
   );
 }
