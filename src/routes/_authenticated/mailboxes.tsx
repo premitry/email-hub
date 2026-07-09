@@ -181,6 +181,7 @@ function MailboxesPage() {
             return (
               <MailboxRow
                 key={m.id}
+                id={m.id}
                 email={email}
                 host={m.domains?.mx_hostname ?? "-"}
                 password={m.password_preview ?? "—"}
@@ -190,6 +191,7 @@ function MailboxesPage() {
               />
             );
           })}
+
         </div>
       )}
     </div>
