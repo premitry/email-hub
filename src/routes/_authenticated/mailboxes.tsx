@@ -74,11 +74,11 @@ function MailboxesPage() {
       resetForm();
     },
     onSuccess: () => {
-      setOpen(false);
       qc.invalidateQueries({ queryKey: ["mailboxes"] });
     },
     onError: (e: any) => toast.error(e.message),
   });
+
 
   const del = useMutation({
     mutationFn: async (id: string) => {
