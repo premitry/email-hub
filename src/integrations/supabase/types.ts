@@ -16,31 +16,40 @@ export type Database = {
     Tables: {
       agent_configs: {
         Row: {
+          agent_version: string | null
           base_url: string | null
           detected_ip: string | null
           last_ping_at: string | null
           last_ping_ok: boolean | null
+          last_sync_at: string | null
           owner_id: string
+          shared_secret: string | null
           shared_secret_hash: string | null
           shared_secret_preview: string | null
           updated_at: string
         }
         Insert: {
+          agent_version?: string | null
           base_url?: string | null
           detected_ip?: string | null
           last_ping_at?: string | null
           last_ping_ok?: boolean | null
+          last_sync_at?: string | null
           owner_id: string
+          shared_secret?: string | null
           shared_secret_hash?: string | null
           shared_secret_preview?: string | null
           updated_at?: string
         }
         Update: {
+          agent_version?: string | null
           base_url?: string | null
           detected_ip?: string | null
           last_ping_at?: string | null
           last_ping_ok?: boolean | null
+          last_sync_at?: string | null
           owner_id?: string
+          shared_secret?: string | null
           shared_secret_hash?: string | null
           shared_secret_preview?: string | null
           updated_at?: string
@@ -133,6 +142,7 @@ export type Database = {
           is_catchall: boolean
           local_part: string
           password_preview: string | null
+          updated_at: string
         }
         Insert: {
           created_at?: string
@@ -142,6 +152,7 @@ export type Database = {
           is_catchall?: boolean
           local_part: string
           password_preview?: string | null
+          updated_at?: string
         }
         Update: {
           created_at?: string
@@ -151,6 +162,7 @@ export type Database = {
           is_catchall?: boolean
           local_part?: string
           password_preview?: string | null
+          updated_at?: string
         }
         Relationships: [
           {

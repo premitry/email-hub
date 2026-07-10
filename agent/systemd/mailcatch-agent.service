@@ -1,0 +1,17 @@
+[Unit]
+Description=MailCatch VPS agent
+After=network.target postfix.service dovecot.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/mailcatch/agent.env
+WorkingDirectory=/opt/mailcatch
+ExecStart=/usr/local/bin/bun src/index.ts
+Restart=always
+RestartSec=3
+User=root
+StandardOutput=append:/var/log/mailcatch/agent.log
+StandardError=append:/var/log/mailcatch/agent.err
+
+[Install]
+WantedBy=multi-user.target

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import {
+  testAgent,
+  syncDomains,
+  syncMailboxes,
+  applyRetention,
+  registerAgentOwner,
+} from "@/lib/agent.functions";
+import { RefreshCw, PlugZap, Globe, Users, Trash2, UserCheck } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
@@ -42,6 +51,7 @@ function SettingsPage() {
         base_url: baseUrl,
         shared_secret_preview: preview,
         ...(secretHash ? { shared_secret_hash: secretHash } : {}),
+        ...(secret ? { shared_secret: secret } : {}),
         updated_at: new Date().toISOString(),
       }, { onConflict: "owner_id" });
       if (error) throw error;
@@ -49,6 +59,22 @@ function SettingsPage() {
     onSuccess: () => { toast.success("Setting disimpan"); setSecret(""); qc.invalidateQueries({ queryKey: ["agent-config"] }); },
     onError: (e: any) => toast.error(e.message),
   });
+
+  const test = useServerFn(testAgent);
+  const syncD = useServerFn(syncDomains);
+  const syncM = useServerFn(syncMailboxes);
+  const retention = useServerFn(applyRetention);
+  const register = useServerFn(registerAgentOwner);
+
+  const run = (label: string, fn: () => Promise<any>) => async () => {
+    const t = toast.loading(label + "…");
+    try {
+      const r = await fn();
+      toast.success(`${label} ok`, { id: t, description: JSON.stringify(r).slice(0, 140) });
+    } catch (e: any) {
+      toast.error(`${label} gagal`, { id: t, description: e.message });
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -74,7 +100,30 @@ function SettingsPage() {
             <Label>Shared secret {cfg?.shared_secret_preview && <span className="ml-2 text-xs text-muted-foreground">tersimpan: {cfg.shared_secret_preview}</span>}</Label>
             <Input type="password" placeholder={cfg?.shared_secret_preview ? "(isi ulang untuk ganti)" : "generate di VPS lalu paste di sini"} value={secret} onChange={(e) => setSecret(e.target.value)} />
           </div>
-          <Button onClick={() => save.mutate()}>Save</Button>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => save.mutate()}>Save</Button>
+            <Button variant="outline" size="sm" onClick={run("Test connection", () => test())}>
+              <PlugZap className="mr-1 h-3.5 w-3.5" /> Test connection
+            </Button>
+            <Button variant="outline" size="sm" onClick={run("Register owner", () => register())}>
+              <UserCheck className="mr-1 h-3.5 w-3.5" /> Register owner
+            </Button>
+            <Button variant="outline" size="sm" onClick={run("Sync domains", () => syncD())}>
+              <Globe className="mr-1 h-3.5 w-3.5" /> Sync domains
+            </Button>
+            <Button variant="outline" size="sm" onClick={run("Sync mailboxes", () => syncM())}>
+              <Users className="mr-1 h-3.5 w-3.5" /> Sync mailboxes
+            </Button>
+            <Button variant="outline" size="sm" onClick={run("Apply retention", () => retention())}>
+              <Trash2 className="mr-1 h-3.5 w-3.5" /> Apply retention
+            </Button>
+          </div>
+          {cfg?.last_sync_at && (
+            <p className="text-xs text-muted-foreground">
+              <RefreshCw className="mr-1 inline h-3 w-3" />
+              Last sync: {new Date(cfg.last_sync_at).toLocaleString()}
+            </p>
+          )}
 
           {cfg && (
             <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
