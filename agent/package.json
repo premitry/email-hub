@@ -1,12 +1,16 @@
 {
   "name": "mailcatch-agent",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
     "start": "bun src/index.ts"
   },
   "dependencies": {
-    "hono": "^4.6.14"
+    "hono": "^4.6.14",
+    "mailparser": "^3.7.1"
+  },
+  "devDependencies": {
+    "@types/mailparser": "^3.4.4"
   }
 }
