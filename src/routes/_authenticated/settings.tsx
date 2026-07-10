@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import {
+  testAgent,
+  syncDomains,
+  syncMailboxes,
+  applyRetention,
+  registerAgentOwner,
+} from "@/lib/agent.functions";
+import { RefreshCw, PlugZap, Globe, Users, Trash2, UserCheck } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
