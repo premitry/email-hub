@@ -51,6 +51,7 @@ function SettingsPage() {
         base_url: baseUrl,
         shared_secret_preview: preview,
         ...(secretHash ? { shared_secret_hash: secretHash } : {}),
+        ...(secret ? { shared_secret: secret } : {}),
         updated_at: new Date().toISOString(),
       }, { onConflict: "owner_id" });
       if (error) throw error;
@@ -58,6 +59,22 @@ function SettingsPage() {
     onSuccess: () => { toast.success("Setting disimpan"); setSecret(""); qc.invalidateQueries({ queryKey: ["agent-config"] }); },
     onError: (e: any) => toast.error(e.message),
   });
+
+  const test = useServerFn(testAgent);
+  const syncD = useServerFn(syncDomains);
+  const syncM = useServerFn(syncMailboxes);
+  const retention = useServerFn(applyRetention);
+  const register = useServerFn(registerAgentOwner);
+
+  const run = (label: string, fn: () => Promise<any>) => async () => {
+    const t = toast.loading(label + "…");
+    try {
+      const r = await fn();
+      toast.success(`${label} ok`, { id: t, description: JSON.stringify(r).slice(0, 140) });
+    } catch (e: any) {
+      toast.error(`${label} gagal`, { id: t, description: e.message });
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-3xl">
