@@ -100,7 +100,30 @@ function SettingsPage() {
             <Label>Shared secret {cfg?.shared_secret_preview && <span className="ml-2 text-xs text-muted-foreground">tersimpan: {cfg.shared_secret_preview}</span>}</Label>
             <Input type="password" placeholder={cfg?.shared_secret_preview ? "(isi ulang untuk ganti)" : "generate di VPS lalu paste di sini"} value={secret} onChange={(e) => setSecret(e.target.value)} />
           </div>
-          <Button onClick={() => save.mutate()}>Save</Button>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => save.mutate()}>Save</Button>
+            <Button variant="outline" size="sm" onClick={run("Test connection", () => test({ data: undefined as any }))}>
+              <PlugZap className="mr-1 h-3.5 w-3.5" /> Test connection
+            </Button>
+            <Button variant="outline" size="sm" onClick={run("Register owner", () => register({ data: undefined as any }))}>
+              <UserCheck className="mr-1 h-3.5 w-3.5" /> Register owner
+            </Button>
+            <Button variant="outline" size="sm" onClick={run("Sync domains", () => syncD({ data: undefined as any }))}>
+              <Globe className="mr-1 h-3.5 w-3.5" /> Sync domains
+            </Button>
+            <Button variant="outline" size="sm" onClick={run("Sync mailboxes", () => syncM({ data: undefined as any }))}>
+              <Users className="mr-1 h-3.5 w-3.5" /> Sync mailboxes
+            </Button>
+            <Button variant="outline" size="sm" onClick={run("Apply retention", () => retention({ data: undefined as any }))}>
+              <Trash2 className="mr-1 h-3.5 w-3.5" /> Apply retention
+            </Button>
+          </div>
+          {cfg?.last_sync_at && (
+            <p className="text-xs text-muted-foreground">
+              <RefreshCw className="mr-1 inline h-3 w-3" />
+              Last sync: {new Date(cfg.last_sync_at).toLocaleString()}
+            </p>
+          )}
 
           {cfg && (
             <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
