@@ -2,9 +2,10 @@
 // Reads config from /etc/mailcatch/agent.env (populated by install.sh)
 import { Hono } from "hono";
 import { spawnSync } from "child_process";
-import { readFileSync, writeFileSync, appendFileSync, existsSync, readdirSync, statSync, unlinkSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, unlinkSync } from "fs";
 import { join } from "path";
 import { createHash, timingSafeEqual } from "crypto";
+import { simpleParser } from "mailparser";
 
 const env = {
   PANEL_URL: process.env.PANEL_URL ?? "",
@@ -13,9 +14,10 @@ const env = {
   SECRET: process.env.SHARED_SECRET ?? "",
   VDOMAINS: process.env.POSTFIX_VDOMAINS ?? "/etc/postfix/vdomains",
   VMAILBOX: process.env.POSTFIX_VMAILBOX ?? "/etc/postfix/vmailbox",
+  VALIASES: process.env.POSTFIX_VALIASES ?? "/etc/postfix/valiases",
   DOVECOT_PASSWD: process.env.DOVECOT_PASSWD ?? "/etc/dovecot/users",
   MAIL_ROOT: process.env.MAIL_ROOT ?? "/var/mail/vhosts",
-  OWNER_ID: process.env.OWNER_ID ?? "", // set once via Settings ping response, kept in memory
+  OWNER_ID: process.env.OWNER_ID ?? "",
 };
 
 if (!env.SECRET) {
@@ -25,7 +27,6 @@ const SECRET_HASH = createHash("sha256").update(env.SECRET).digest();
 
 const app = new Hono();
 
-// Bearer check
 app.use("*", async (c, next) => {
   if (c.req.path === "/ingest") return next(); // loopback pipe only
   const auth = c.req.header("authorization") ?? "";
@@ -40,11 +41,11 @@ app.use("*", async (c, next) => {
 app.get("/health", (c) => c.json({
   ok: true,
   uptime: process.uptime(),
-  version: "0.1.0",
+  version: "0.2.0",
   hostname: env.MAIL_HOSTNAME,
 }));
 
-// -------- Domains sync (Postfix vdomains) ----------
+// -------- Domains sync ----------
 app.post("/domains/sync", async (c) => {
   const body = await c.req.json() as { domains: { name: string; catchall_mailbox?: string | null }[] };
   const lines = (body.domains ?? []).map(d => `${d.name}\tOK`).join("\n") + "\n";
@@ -54,29 +55,36 @@ app.post("/domains/sync", async (c) => {
   return c.json({ ok: true, count: body.domains.length });
 });
 
-// -------- Mailboxes sync (Dovecot passwd + Postfix vmailbox) --------
+// -------- Mailboxes sync --------
+// Writes:
+//   /etc/dovecot/users      -> IMAP auth (SHA512-CRYPT via doveadm)
+//   /etc/postfix/vmailbox   -> exact recipients (user@domain -> maildir)
+//   /etc/postfix/valiases   -> catch-all (@domain -> user@domain) via virtual_alias_maps
 app.post("/mailboxes/sync", async (c) => {
   const body = await c.req.json() as {
     mailboxes: { email: string; domain: string; password: string; is_catchall: boolean; disabled: boolean }[];
   };
   const users: string[] = [];
   const vmail: string[] = [];
+  const valiases: string[] = [];
   for (const m of body.mailboxes) {
     if (m.disabled || !m.password) continue;
+    const local = m.email.split("@")[0];
     const hashed = dovecotHash(m.password);
     users.push(`${m.email}:${hashed}::::::`);
-    vmail.push(`${m.email}\t${m.domain}/${m.email.split("@")[0]}/`);
-    if (m.is_catchall) vmail.push(`@${m.domain}\t${m.domain}/${m.email.split("@")[0]}/`);
+    vmail.push(`${m.email}\t${m.domain}/${local}/`);
+    if (m.is_catchall) valiases.push(`@${m.domain}\t${m.email}`);
   }
   writeFileSync(env.DOVECOT_PASSWD, users.join("\n") + "\n", { mode: 0o640 });
   writeFileSync(env.VMAILBOX, vmail.join("\n") + "\n");
+  writeFileSync(env.VALIASES, valiases.join("\n") + "\n");
   runOrThrow("postmap", [env.VMAILBOX]);
+  runOrThrow("postmap", [env.VALIASES]);
   runOrThrow("systemctl", ["reload", "postfix"]);
   runOrThrow("systemctl", ["reload", "dovecot"]);
   return c.json({ ok: true, count: body.mailboxes.length });
 });
 
-// -------- Password reset (single mailbox) --------
 app.post("/mailboxes/reset-password", async (c) => {
   const { email, new_password } = await c.req.json() as { email: string; new_password: string };
   if (!email || !new_password) return c.text("email+new_password required", 400);
@@ -88,7 +96,6 @@ app.post("/mailboxes/reset-password", async (c) => {
   return c.json({ ok: true });
 });
 
-// -------- Retention (delete old / trim per mailbox) --------
 app.post("/retention/apply", async (c) => {
   const body = await c.req.json() as {
     policies: { domain: string; max_age_days: number; max_count: number }[];
@@ -123,15 +130,23 @@ app.post("/retention/apply", async (c) => {
 
 // -------- Ingest from local Postfix pipe -> push to panel --------
 app.post("/ingest", async (c) => {
-  // No bearer: only accessible from localhost via mailcatch-pipe.
   const body = await c.req.json() as { to: string; from: string; raw: string };
   if (!env.PANEL_URL) return c.json({ ok: false, error: "panel url not set" });
 
-  const parsed = parseMinimalMail(body.raw);
-
-  // owner_id required by panel. Read from state file (set by /register once).
   const ownerId = readOwnerId();
   if (!ownerId) return c.json({ ok: false, error: "owner_id not registered" });
+
+  let subject = "";
+  let text = "";
+  let html = "";
+  try {
+    const parsed = await simpleParser(body.raw);
+    subject = parsed.subject ?? "";
+    text = parsed.text ?? "";
+    html = typeof parsed.html === "string" ? parsed.html : "";
+  } catch (e) {
+    console.error("mailparser failed", (e as Error).message);
+  }
 
   const res = await fetch(env.PANEL_URL.replace(/\/$/, "") + "/api/public/agent/emails", {
     method: "POST",
@@ -143,9 +158,9 @@ app.post("/ingest", async (c) => {
       owner_id: ownerId,
       to: body.to,
       from: body.from,
-      subject: parsed.subject,
-      body_text: parsed.text,
-      body_html: parsed.html,
+      subject,
+      body_text: text,
+      body_html: html,
       size: body.raw.length,
       received_at: new Date().toISOString(),
     }),
@@ -153,7 +168,6 @@ app.post("/ingest", async (c) => {
   return c.json({ ok: res.ok, status: res.status });
 });
 
-// -------- Register owner_id (called once by panel or admin) --------
 app.post("/register", async (c) => {
   const { owner_id } = await c.req.json() as { owner_id: string };
   if (!owner_id) return c.text("owner_id required", 400);
@@ -161,7 +175,6 @@ app.post("/register", async (c) => {
   return c.json({ ok: true });
 });
 
-// -------- Ping panel every minute (keeps status fresh + advertises IP) --------
 async function ping() {
   const ownerId = readOwnerId();
   if (!env.PANEL_URL || !ownerId) return;
@@ -176,7 +189,6 @@ async function ping() {
 setInterval(ping, 60_000);
 setTimeout(ping, 3_000);
 
-// ---------- helpers ----------
 function readOwnerId(): string {
   try { return readFileSync("/etc/mailcatch/owner_id", "utf8").trim(); } catch { return env.OWNER_ID; }
 }
@@ -185,26 +197,9 @@ function runOrThrow(cmd: string, args: string[]) {
   if (r.status !== 0) throw new Error(`${cmd} ${args.join(" ")} -> ${r.stderr?.toString()}`);
 }
 function dovecotHash(pw: string): string {
-  // Use doveadm to produce SHA512-CRYPT hash so passdb can verify it.
   const r = spawnSync("doveadm", ["pw", "-s", "SHA512-CRYPT", "-p", pw], { stdio: "pipe" });
   if (r.status !== 0) throw new Error("doveadm pw failed: " + r.stderr?.toString());
   return r.stdout.toString().trim();
-}
-function parseMinimalMail(raw: string) {
-  const [headerBlock, ...rest] = raw.split(/\r?\n\r?\n/);
-  const body = rest.join("\n\n");
-  const headers: Record<string, string> = {};
-  for (const line of headerBlock.split(/\r?\n/)) {
-    const m = line.match(/^([A-Za-z\-]+):\s*(.*)$/);
-    if (m) headers[m[1].toLowerCase()] = m[2];
-  }
-  const ctype = headers["content-type"] ?? "";
-  const isHtml = /text\/html/i.test(ctype);
-  return {
-    subject: headers["subject"] ?? "",
-    text: isHtml ? "" : body,
-    html: isHtml ? body : "",
-  };
 }
 
 console.log(`mailcatch-agent listening on :${env.PORT}`);
