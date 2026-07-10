@@ -102,19 +102,19 @@ function SettingsPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => save.mutate()}>Save</Button>
-            <Button variant="outline" size="sm" onClick={run("Test connection", () => test({ data: undefined as any }))}>
+            <Button variant="outline" size="sm" onClick={run("Test connection", () => test())}>
               <PlugZap className="mr-1 h-3.5 w-3.5" /> Test connection
             </Button>
-            <Button variant="outline" size="sm" onClick={run("Register owner", () => register({ data: undefined as any }))}>
+            <Button variant="outline" size="sm" onClick={run("Register owner", () => register())}>
               <UserCheck className="mr-1 h-3.5 w-3.5" /> Register owner
             </Button>
-            <Button variant="outline" size="sm" onClick={run("Sync domains", () => syncD({ data: undefined as any }))}>
+            <Button variant="outline" size="sm" onClick={run("Sync domains", () => syncD())}>
               <Globe className="mr-1 h-3.5 w-3.5" /> Sync domains
             </Button>
-            <Button variant="outline" size="sm" onClick={run("Sync mailboxes", () => syncM({ data: undefined as any }))}>
+            <Button variant="outline" size="sm" onClick={run("Sync mailboxes", () => syncM())}>
               <Users className="mr-1 h-3.5 w-3.5" /> Sync mailboxes
             </Button>
-            <Button variant="outline" size="sm" onClick={run("Apply retention", () => retention({ data: undefined as any }))}>
+            <Button variant="outline" size="sm" onClick={run("Apply retention", () => retention())}>
               <Trash2 className="mr-1 h-3.5 w-3.5" /> Apply retention
             </Button>
           </div>
