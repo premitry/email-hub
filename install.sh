@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # MailCatch VPS installer — Ubuntu 22.04/24.04
-# Installs Postfix + Dovecot + the MailCatch agent, and prints the shared secret.
+# Installs Postfix (SMTP inbound only) + Dovecot (IMAP) + MailCatch agent.
+# NO outbound SMTP. Optionally provisions Let's Encrypt TLS for IMAPS + STARTTLS.
+#
 # Usage:  sudo bash install.sh <mail-hostname> <panel-url>
 #   e.g.  sudo bash install.sh mail.imapku.web.id https://panel.example.com
 set -euo pipefail
@@ -20,9 +22,9 @@ echo "==> Updating apt"
 apt-get update -y
 DEBIAN_FRONTEND=noninteractive apt-get install -y \
   postfix postfix-pcre dovecot-imapd dovecot-lmtpd \
-  curl unzip ca-certificates jq
+  curl unzip ca-certificates jq certbot
 
-# ---- Bun (runtime for agent) ----
+# ---- Bun ----
 if ! command -v bun >/dev/null 2>&1; then
   echo "==> Installing bun"
   curl -fsSL https://bun.sh/install | bash
@@ -43,7 +45,7 @@ if [[ ! -s "$SECRET_FILE" ]]; then
 fi
 SECRET="$(cat "$SECRET_FILE")"
 
-# ---- Config file ----
+# ---- Agent env ----
 cat > /etc/mailcatch/agent.env <<EOF
 PANEL_URL=$PANEL_URL
 AGENT_PORT=8787
@@ -51,25 +53,61 @@ MAIL_HOSTNAME=$HOSTNAME
 SHARED_SECRET=$SECRET
 POSTFIX_VDOMAINS=/etc/postfix/vdomains
 POSTFIX_VMAILBOX=/etc/postfix/vmailbox
+POSTFIX_VALIASES=/etc/postfix/valiases
 DOVECOT_PASSWD=/etc/dovecot/users
 MAIL_ROOT=/var/mail/vhosts
 EOF
 chmod 600 /etc/mailcatch/agent.env
 
-# ---- Postfix minimal config ----
+# ---- Let's Encrypt (best-effort; port 80 must be open + DNS pointing here) ----
+CERT_DIR="/etc/letsencrypt/live/$HOSTNAME"
+if [[ ! -f "$CERT_DIR/fullchain.pem" ]]; then
+  echo "==> Requesting Let's Encrypt cert for $HOSTNAME (needs port 80 open + DNS)"
+  certbot certonly --standalone --non-interactive --agree-tos \
+    --register-unsafely-without-email -d "$HOSTNAME" || \
+    echo "!! certbot failed — continuing without TLS (IMAPS/STARTTLS disabled)"
+fi
+
+# ---- Postfix: inbound-only, no relay ----
 postconf -e "myhostname = $HOSTNAME"
 postconf -e "mydestination = localhost"
 postconf -e "virtual_mailbox_domains = hash:/etc/postfix/vdomains"
 postconf -e "virtual_mailbox_maps = hash:/etc/postfix/vmailbox"
+postconf -e "virtual_alias_maps = hash:/etc/postfix/valiases"
 postconf -e "virtual_transport = lmtp:unix:private/dovecot-lmtp"
 postconf -e "smtpd_relay_restrictions = permit_mynetworks reject_unauth_destination"
 postconf -e "smtpd_recipient_restrictions = permit_mynetworks reject_unauth_destination"
-touch /etc/postfix/vdomains /etc/postfix/vmailbox
+# Message size limit (25MB)
+postconf -e "message_size_limit = 26214400"
+
+# STARTTLS on port 25 (opportunistic) when cert exists
+if [[ -f "$CERT_DIR/fullchain.pem" ]]; then
+  postconf -e "smtpd_tls_cert_file = $CERT_DIR/fullchain.pem"
+  postconf -e "smtpd_tls_key_file = $CERT_DIR/privkey.pem"
+  postconf -e "smtpd_use_tls = yes"
+  postconf -e "smtpd_tls_security_level = may"
+  postconf -e "smtpd_tls_loglevel = 1"
+fi
+
+touch /etc/postfix/vdomains /etc/postfix/vmailbox /etc/postfix/valiases
 postmap /etc/postfix/vdomains
 postmap /etc/postfix/vmailbox
+postmap /etc/postfix/valiases
 
-# ---- Dovecot minimal config ----
-cat > /etc/dovecot/conf.d/99-mailcatch.conf <<'EOF'
+# ---- Dovecot ----
+if [[ -f "$CERT_DIR/fullchain.pem" ]]; then
+  SSL_BLOCK=$(cat <<EOF
+ssl = yes
+ssl_cert = <$CERT_DIR/fullchain.pem
+ssl_key = <$CERT_DIR/privkey.pem
+ssl_min_protocol = TLSv1.2
+EOF
+)
+else
+  SSL_BLOCK="ssl = no"
+fi
+
+cat > /etc/dovecot/conf.d/99-mailcatch.conf <<EOF
 protocols = imap lmtp
 mail_location = maildir:/var/mail/vhosts/%d/%n
 mail_uid = vmail
@@ -77,8 +115,15 @@ mail_gid = vmail
 first_valid_uid = 5000
 last_valid_uid = 5000
 
-passdb { driver = passwd-file; args = scheme=SHA512-CRYPT username_format=%u /etc/dovecot/users }
-userdb { driver = static; args = uid=vmail gid=vmail home=/var/mail/vhosts/%d/%n }
+disable_plaintext_auth = no
+auth_mechanisms = plain login
+
+passdb { driver = passwd-file
+  args = scheme=SHA512-CRYPT username_format=%u /etc/dovecot/users
+}
+userdb { driver = static
+  args = uid=vmail gid=vmail home=/var/mail/vhosts/%d/%n
+}
 
 service lmtp {
   unix_listener /var/spool/postfix/private/dovecot-lmtp {
@@ -88,8 +133,14 @@ service lmtp {
   }
 }
 
-ssl = yes
+service imap-login {
+  inet_listener imap  { port = 143 }
+  inet_listener imaps { port = 993; ssl = yes }
+}
+
+$SSL_BLOCK
 EOF
+
 touch /etc/dovecot/users
 chmod 640 /etc/dovecot/users
 chown root:dovecot /etc/dovecot/users || true
@@ -105,8 +156,7 @@ install -m 0644 -T "$(dirname "$0")/agent/systemd/mailcatch-agent.service" /etc/
 systemctl daemon-reload
 systemctl enable --now mailcatch-agent.service
 
-# ---- Postfix pipe for pushing inbound mail to panel ----
-# A transport that forwards each recipient to the agent's local /ingest endpoint.
+# ---- Postfix pipe -> push inbound to panel ----
 cat > /etc/postfix/master.cf.append <<'EOF'
 mailcatch  unix  -       n       n       -       -       pipe
   flags=DRhu user=vmail argv=/usr/local/bin/mailcatch-pipe ${recipient} ${sender}
@@ -126,8 +176,6 @@ curl -fsS --max-time 15 -X POST "http://127.0.0.1:8787/ingest" \
 EOF
 chmod +x /usr/local/bin/mailcatch-pipe
 
-# also LMTP to dovecot for delivery so IMAP has it too — done by virtual_transport.
-
 systemctl restart postfix
 systemctl restart dovecot
 
@@ -138,6 +186,12 @@ echo " Agent URL   : http://$(hostname -I | awk '{print $1}'):8787"
 echo " Mail host   : $HOSTNAME"
 echo " Panel URL   : $PANEL_URL"
 echo " Shared key  : $SECRET"
+if [[ -f "$CERT_DIR/fullchain.pem" ]]; then
+  echo " TLS         : enabled (IMAPS :993, STARTTLS :25)"
+else
+  echo " TLS         : DISABLED — run certbot manually after DNS is ready:"
+  echo "               certbot certonly --standalone -d $HOSTNAME"
+fi
 echo "----------------------------------------------------------------------"
-echo " Copy the shared key into Panel -> Settings -> VPS Agent."
+echo " Paste the shared key into Panel -> Settings -> VPS Agent."
 echo "======================================================================"
