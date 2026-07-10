@@ -39,6 +39,12 @@ export const testAgent = createServerFn({ method: "POST" })
     return { ok: true, ms: Date.now() - started, agent: r };
   });
 
+export const registerAgentOwner = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    return agentFetch(context.userId, "/register", { owner_id: context.userId });
+  });
+
 export const syncDomains = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {

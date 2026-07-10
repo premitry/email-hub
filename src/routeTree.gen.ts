@@ -20,6 +20,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedDomainsIndexRouteImport } from './routes/_authenticated/domains.index'
 import { Route as AuthenticatedDomainsIdRouteImport } from './routes/_authenticated/domains.$id'
 import { Route as ApiPublicAgentPingRouteImport } from './routes/api/public/agent/ping'
+import { Route as ApiPublicAgentEmailsRouteImport } from './routes/api/public/agent/emails'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -76,6 +77,11 @@ const ApiPublicAgentPingRoute = ApiPublicAgentPingRouteImport.update({
   path: '/api/public/agent/ping',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicAgentEmailsRoute = ApiPublicAgentEmailsRouteImport.update({
+  id: '/api/public/agent/emails',
+  path: '/api/public/agent/emails',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -87,6 +93,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/domains/$id': typeof AuthenticatedDomainsIdRoute
   '/domains/': typeof AuthenticatedDomainsIndexRoute
+  '/api/public/agent/emails': typeof ApiPublicAgentEmailsRoute
   '/api/public/agent/ping': typeof ApiPublicAgentPingRoute
 }
 export interface FileRoutesByTo {
@@ -98,6 +105,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/domains/$id': typeof AuthenticatedDomainsIdRoute
   '/domains': typeof AuthenticatedDomainsIndexRoute
+  '/api/public/agent/emails': typeof ApiPublicAgentEmailsRoute
   '/api/public/agent/ping': typeof ApiPublicAgentPingRoute
 }
 export interface FileRoutesById {
@@ -112,6 +120,7 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/domains/$id': typeof AuthenticatedDomainsIdRoute
   '/_authenticated/domains/': typeof AuthenticatedDomainsIndexRoute
+  '/api/public/agent/emails': typeof ApiPublicAgentEmailsRoute
   '/api/public/agent/ping': typeof ApiPublicAgentPingRoute
 }
 export interface FileRouteTypes {
@@ -126,6 +135,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/domains/$id'
     | '/domains/'
+    | '/api/public/agent/emails'
     | '/api/public/agent/ping'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -137,6 +147,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/domains/$id'
     | '/domains'
+    | '/api/public/agent/emails'
     | '/api/public/agent/ping'
   id:
     | '__root__'
@@ -150,6 +161,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/domains/$id'
     | '/_authenticated/domains/'
+    | '/api/public/agent/emails'
     | '/api/public/agent/ping'
   fileRoutesById: FileRoutesById
 }
@@ -157,6 +169,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ApiPublicAgentEmailsRoute: typeof ApiPublicAgentEmailsRoute
   ApiPublicAgentPingRoute: typeof ApiPublicAgentPingRoute
 }
 
@@ -239,6 +252,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicAgentPingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/agent/emails': {
+      id: '/api/public/agent/emails'
+      path: '/api/public/agent/emails'
+      fullPath: '/api/public/agent/emails'
+      preLoaderRoute: typeof ApiPublicAgentEmailsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -278,6 +298,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ApiPublicAgentEmailsRoute: ApiPublicAgentEmailsRoute,
   ApiPublicAgentPingRoute: ApiPublicAgentPingRoute,
 }
 export const routeTree = rootRouteImport
