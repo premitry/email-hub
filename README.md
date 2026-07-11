@@ -1,317 +1,680 @@
-# MailCatch
+# MailCatch / Email Hub
 
-Self-hosted **catch-all mail server** untuk domain sendiri. Panel web buat manage
-domain/mailbox + retensi, mail server (Postfix + Dovecot) jalan di VPS Ubuntu,
-akses email pakai IMAP client apa aja (Outlook, Thunderbird, Apple Mail, n8n, dst).
+MailCatch adalah aplikasi **self-hosted catch-all mail server** untuk domain sendiri. Aplikasi ini cocok untuk menerima email masuk ke domain pribadi, lalu membaca email tersebut lewat panel web atau IMAP client seperti Thunderbird, Outlook, Apple Mail, atau integrasi otomatis seperti n8n.
+
+> Fokus project ini adalah **menerima email / inbox only**. Project ini **bukan SMTP relay** untuk mengirim email massal.
+
+---
+
+## Fitur Utama
+
+- Panel web untuk mengelola domain, mailbox, dan inbox.
+- Mail server di VPS menggunakan Postfix dan Dovecot.
+- Mendukung catch-all email.
+- Bisa dibaca lewat IMAP / IMAPS.
+- Agent VPS untuk sinkronisasi domain dan mailbox dari panel.
+- TLS / SSL menggunakan Let's Encrypt.
+- Retention cleanup untuk membatasi umur dan jumlah email.
+
+---
+
+## Gambaran Cara Kerja
 
 ```text
-┌──────────────────────────────┐         ┌────────────────────────────┐
-│  Web Panel (TanStack Start)  │  HTTPS  │   VPS Ubuntu               │
-│  Lovable Cloud (default) or  │◄───────►│   Postfix + Dovecot        │
-│  self-hosted di VPS          │  bearer │   mailcatch-agent (Bun)    │
-└──────────────────────────────┘         └────────────────────────────┘
-        ▲                                          │
-        │       POST /api/public/agent/emails      │
-        └──────────────  push inbound  ────────────┘
+Domain Anda -> DNS MX -> VPS -> Postfix -> Dovecot -> MailCatch Agent -> Panel Web
 ```
 
-**Status: siap dipakai.** Install script sudah include Postfix inbound-only,
-Dovecot IMAP/IMAPS, Let's Encrypt otomatis, agent systemd service, catch-all
-via `virtual_alias_maps`, MIME parsing pakai `mailparser`, retention cleanup.
+Komponen utama:
+
+1. **Panel Web**: tempat login, menambah domain, membuat mailbox, dan membaca email.
+2. **VPS Mail Server**: server Ubuntu yang menjalankan Postfix, Dovecot, dan MailCatch Agent.
+3. **DNS Domain**: domain harus diarahkan ke VPS menggunakan record A, MX, SPF, dan PTR / Reverse DNS.
 
 ---
 
-## Daftar isi
+## Kebutuhan Sebelum Install
 
-1. [Prasyarat VPS](#1-prasyarat-vps)
-2. [Setup DNS](#2-setup-dns)
-3. [Install mail server + agent](#3-install-mail-server--agent-di-vps)
-4. [Hubungkan panel ke VPS](#4-hubungkan-panel-ke-vps)
-5. [Tambah domain + mailbox](#5-tambah-domain--mailbox)
-6. [Pakai IMAP di client](#6-pakai-imap-di-email-client)
-7. [Panel di VPS (opsional)](#7-jalanin-panel-di-vps-yang-sama-opsional)
-8. [Operasional](#8-operasional--troubleshooting)
+### 1. VPS
 
----
+Disarankan menggunakan VPS fresh install.
 
-## 1. Prasyarat VPS
+Spesifikasi minimum:
 
-**Rekomendasi provider: DigitalOcean** (port 25 tidak diblok, PTR bisa di-set
-dari panel). Vendor lain (Linode, Hetzner, Vultr) juga OK. **Hindari** GCP/AWS/
-Azure default — port 25 outbound diblok, tapi untuk MailCatch (inbound only)
-sebenarnya masih bisa jalan; PTR biasanya perlu ticket.
-
-Spek minimum:
-
-- Ubuntu **22.04 LTS** atau **24.04 LTS**, fresh install
-- 1 GB RAM, 25 GB disk ($6/mo cukup buat pemakaian pribadi)
+- Ubuntu 22.04 LTS atau Ubuntu 24.04 LTS
+- RAM minimal 1 GB
+- Disk minimal 25 GB
 - IPv4 publik statis
-- Port yang harus **open di firewall**:
-  - `25/tcp`   — SMTP inbound
-  - `80/tcp`   — HTTP (dipakai certbot buat issue SSL)
-  - `143/tcp`  — IMAP (STARTTLS)
-  - `993/tcp`  — IMAPS (TLS)
-  - `8787/tcp` — agent (bisa dibatasi ke IP panel aja, atau taruh di belakang nginx/caddy)
+- Akses root / sudo
 
-Cek port 25 nggak diblok:
+### 2. Domain
+
+Anda harus punya domain sendiri, misalnya:
+
+```text
+example.com
+```
+
+Hostname mail server nanti bisa dibuat seperti:
+
+```text
+mail.example.com
+```
+
+### 3. Port yang Harus Dibuka
+
+Buka port berikut di firewall VPS / cloud provider:
+
+| Port | Protocol | Fungsi |
+|---|---|---|
+| 25 | TCP | SMTP inbound, untuk menerima email |
+| 80 | TCP | HTTP, dibutuhkan Let's Encrypt saat membuat SSL |
+| 143 | TCP | IMAP dengan STARTTLS |
+| 993 | TCP | IMAPS / IMAP SSL |
+| 8787 | TCP | MailCatch Agent API |
+
+Untuk DigitalOcean Firewall, tambahkan inbound rule:
+
+```text
+Type     : Custom
+Protocol : TCP
+Ports    : 25
+Sources  : All IPv4, All IPv6
+```
+
+Ulangi juga untuk port `80`, `143`, `993`, dan `8787`.
+
+> Catatan: port `8787` sebaiknya tidak dibuka ke semua orang jika sudah production. Lebih aman dibatasi ke IP panel atau dipasang di belakang reverse proxy HTTPS.
+
+---
+
+## Setup DNS Domain
+
+Contoh:
+
+- Domain: `example.com`
+- Hostname mail server: `mail.example.com`
+- IP VPS: `203.0.113.10`
+
+Tambahkan DNS record berikut di Cloudflare, registrar, atau DNS provider Anda.
+
+| Type | Name / Host | Value | Catatan |
+|---|---|---|---|
+| A | `mail` | `203.0.113.10` | Arahkan mail hostname ke IP VPS |
+| MX | `@` | `mail.example.com` | Priority: `10` |
+| TXT | `@` | `v=spf1 mx ~all` | SPF basic |
+| PTR / Reverse DNS | IP VPS | `mail.example.com` | Diatur dari panel provider VPS |
+
+Jika memakai Cloudflare:
+
+- Record `A mail` harus **DNS only / grey cloud**.
+- Jangan aktifkan proxy orange cloud untuk mail server.
+
+Cek DNS dari terminal:
 
 ```bash
-nc -zv gmail-smtp-in.l.google.com 25
-# harus keluar "succeeded"
+dig +short mail.example.com
+dig +short MX example.com
+dig +short -x 203.0.113.10
+```
+
+Hasil yang benar kira-kira:
+
+```text
+203.0.113.10
+10 mail.example.com.
+mail.example.com.
 ```
 
 ---
 
-## 2. Setup DNS
+## Cara Install Mail Server di VPS
 
-Anggap domainnya `imapku.web.id`, hostname mail server `mail.imapku.web.id`,
-IP VPS `203.0.113.10`.
-
-Di **DNS registrar** (Cloudflare / Namecheap / registrar apapun):
-
-| Type | Name / Host        | Value                       | Notes                          |
-| ---- | ------------------ | --------------------------- | ------------------------------ |
-| A    | `mail`             | `203.0.113.10`              | proxy Cloudflare **OFF (grey)** |
-| MX   | `@` (root)         | `mail.imapku.web.id.` prio 10 |                              |
-| TXT  | `@`                | `v=spf1 mx ~all`            | SPF                            |
-
-**PTR / Reverse DNS** — di panel VPS provider (DigitalOcean: Droplets →
-Networking → PTR), set PTR untuk `203.0.113.10` ke `mail.imapku.web.id`.
-PTR yang benar wajib biar email nggak masuk spam.
-
-Verify sebelum lanjut:
-
-```bash
-dig +short mail.imapku.web.id           # harus 203.0.113.10
-dig +short MX imapku.web.id             # harus mail.imapku.web.id
-dig +short -x 203.0.113.10              # harus mail.imapku.web.id.
-```
-
----
-
-## 3. Install mail server + agent di VPS
-
-SSH ke VPS sebagai root:
+Login ke VPS sebagai root:
 
 ```bash
 ssh root@203.0.113.10
 ```
 
-Clone repo dan jalanin installer:
+Update server dan install Git:
 
 ```bash
-apt-get update && apt-get install -y git
-git clone <repo-url> mailcatch && cd mailcatch
-
-# usage: bash install.sh <mail-hostname> <panel-url>
-bash install.sh mail.imapku.web.id https://your-panel.lovable.app
+apt-get update
+apt-get install -y git curl
 ```
 
-Yang dilakuin installer:
-
-1. Install Postfix (inbound only, no relay), Dovecot (IMAP + LMTP), Bun, jq, certbot
-2. Bikin user `vmail`, direktori `/var/mail/vhosts`
-3. Generate **shared secret** (32-byte hex) di `/etc/mailcatch/secret`
-4. Request cert **Let's Encrypt** untuk `$HOSTNAME` (butuh port 80 open + DNS udah propagate)
-5. Konfig Postfix: `virtual_mailbox_maps`, `virtual_alias_maps` (catch-all),
-   LMTP ke Dovecot, STARTTLS di port 25, size limit 25 MB
-6. Konfig Dovecot: Maildir per user, passwd-file (SHA512-CRYPT), IMAPS :993
-7. Install agent di `/opt/mailcatch`, enable `mailcatch-agent.service`
-8. Pasang `mailcatch-pipe` di Postfix master.cf buat push email masuk ke panel
-9. Print **shared secret** — **salin nilai ini**, dipakai di panel
-
-Cek semuanya jalan:
+Clone repository:
 
 ```bash
-systemctl status postfix dovecot mailcatch-agent
-curl -s http://127.0.0.1:8787/health   # harus {"ok":true,...}
+git clone https://github.com/premitry/email-hub.git mailcatch
+cd mailcatch
 ```
 
----
-
-## 4. Hubungkan panel ke VPS
-
-Panel default-nya hosted di Lovable Cloud (URL `https://xxx.lovable.app`).
-Login pakai email — user pertama otomatis jadi `admin`.
-
-Buka **Settings → VPS Agent**:
-
-1. **Agent base URL** — `http://203.0.113.10:8787` (atau `https://mail.imapku.web.id`
-   kalau lu taruh di belakang reverse proxy TLS)
-2. **Shared secret** — paste dari output installer
-3. **Save**
-4. **Test connection** — harus balik `ok`
-5. **Register owner** — agent nyimpen `owner_id` di `/etc/mailcatch/owner_id`,
-   dipakai buat push email masuk ke akun panel yang bener
-
----
-
-## 5. Tambah domain + mailbox
-
-**Domains → Add domain** → isi `imapku.web.id`:
-
-- Live DNS checker (MX / A / SPF / PTR) — pastiin ijo semua
-- Set retensi: max umur email (default 1 hari) + max jumlah (default 100)
-- Klik **Sync to VPS** — panel manggil `POST /domains/sync` ke agent, agent
-  nulis `/etc/postfix/vdomains` + `postmap` + reload postfix
-
-**Mailboxes → Add mailbox**:
-
-- Email: `anything@imapku.web.id` (atau centang **catch-all** biar `@domain` route ke sini)
-- Panel auto-generate password 24-char (SHA512-CRYPT via `doveadm pw`)
-- Klik **Sync to VPS** — agent update `/etc/dovecot/users`, `/etc/postfix/vmailbox`,
-  dan `/etc/postfix/valiases` (catch-all), lalu reload postfix + dovecot
-
----
-
-## 6. Pakai IMAP di email client
-
-| Field          | Value                            |
-| -------------- | -------------------------------- |
-| IMAP server    | `mail.imapku.web.id`             |
-| IMAP port      | `993`                            |
-| Encryption     | `SSL/TLS`                        |
-| Username       | full email (`user@imapku.web.id`)|
-| Password       | dari panel                       |
-| SMTP           | **tidak disediakan** — inbox only|
-
-Test dari terminal:
+Jalankan installer:
 
 ```bash
-openssl s_client -connect mail.imapku.web.id:993 -crlf
-# > a login user@imapku.web.id "<password>"
-# > a list "" "*"
-# > a logout
+bash install.sh mail.example.com https://url-panel-anda.com
+```
+
+Ganti:
+
+- `mail.example.com` dengan hostname mail server Anda.
+- `https://url-panel-anda.com` dengan URL panel web Anda.
+
+Contoh:
+
+```bash
+bash install.sh mail.example.com https://panel.example.com
+```
+
+Installer akan melakukan beberapa hal otomatis:
+
+- Install Postfix untuk menerima email masuk.
+- Install Dovecot untuk IMAP / IMAPS.
+- Install Bun runtime.
+- Membuat user `vmail`.
+- Membuat folder email di `/var/mail/vhosts`.
+- Membuat shared secret di `/etc/mailcatch/secret`.
+- Request SSL Let's Encrypt untuk hostname mail server.
+- Membuat service `mailcatch-agent`.
+- Mengaktifkan sinkronisasi domain dan mailbox dari panel.
+
+Setelah selesai, installer akan menampilkan output seperti:
+
+```text
+Agent URL  : http://IP-VPS:8787
+Mail host  : mail.example.com
+Panel URL  : https://panel.example.com
+Shared key : xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+Simpan **Shared key** tersebut. Nanti akan dimasukkan ke panel web.
+
+---
+
+## Cek Service Setelah Install
+
+Jalankan:
+
+```bash
+systemctl status postfix
+systemctl status dovecot
+systemctl status mailcatch-agent
+```
+
+Cek agent:
+
+```bash
+curl -s http://127.0.0.1:8787/health
+```
+
+Jika normal, hasilnya kurang lebih:
+
+```json
+{"ok": true}
+```
+
+Cek port aktif:
+
+```bash
+ss -tlnp | grep -E ':25|:80|:143|:993|:8787'
 ```
 
 ---
 
-## 7. Jalanin panel di VPS yang sama (opsional)
+## Hubungkan Panel Web ke VPS
 
-Panel default-nya di Lovable Cloud (recommended — gratis, edge, auto-scale).
-Kalau **wajib satu VPS**, panel bisa self-host, tapi tetap butuh Postgres
-+ Auth (Supabase self-hosted atau external). Contoh minimum pakai
-`bun` + reverse proxy:
+Buka panel web MailCatch, lalu masuk ke menu:
+
+```text
+Settings -> VPS Agent
+```
+
+Isi data berikut:
+
+```text
+Agent base URL : http://IP-VPS:8787
+Shared secret  : isi dengan Shared key dari installer
+```
+
+Setelah itu:
+
+1. Klik **Save**.
+2. Klik **Test connection**.
+3. Pastikan statusnya `ok`.
+4. Klik **Register owner** jika tersedia.
+
+Jika agent menggunakan reverse proxy HTTPS, Agent base URL bisa berbentuk:
+
+```text
+https://mail.example.com
+```
+
+---
+
+## Menambahkan Domain
+
+Di panel web:
+
+1. Buka menu **Domains**.
+2. Klik **Add domain**.
+3. Isi domain, misalnya `example.com`.
+4. Cek status DNS checker.
+5. Pastikan MX, A, SPF, dan PTR sudah benar.
+6. Klik **Sync to VPS**.
+
+Sync ke VPS akan membuat konfigurasi domain di Postfix.
+
+---
+
+## Membuat Mailbox
+
+Di panel web:
+
+1. Buka menu **Mailboxes**.
+2. Klik **Add mailbox**.
+3. Masukkan email, contoh `inbox@example.com`.
+4. Jika ingin semua email ke domain masuk ke mailbox ini, aktifkan **catch-all**.
+5. Simpan password yang dibuat panel.
+6. Klik **Sync to VPS**.
+
+Contoh catch-all:
+
+```text
+sales@example.com      -> masuk ke inbox@example.com
+admin@example.com      -> masuk ke inbox@example.com
+random123@example.com  -> masuk ke inbox@example.com
+```
+
+---
+
+## Setting IMAP di Email Client
+
+Gunakan pengaturan berikut di Thunderbird, Outlook, Apple Mail, atau aplikasi lain:
+
+| Field | Value |
+|---|---|
+| IMAP Server | `mail.example.com` |
+| IMAP Port | `993` |
+| Encryption | SSL/TLS |
+| Username | email lengkap, contoh `inbox@example.com` |
+| Password | password dari panel |
+
+Project ini tidak menyediakan SMTP untuk kirim email. Jadi bagian SMTP boleh dikosongkan atau gunakan SMTP provider lain.
+
+---
+
+## Deploy Panel Web Sendiri
+
+Repository ini memakai TanStack Start, Vite, React, Bun, dan Supabase.
+
+### Install Dependency Lokal
+
+Pastikan Bun sudah terinstall.
 
 ```bash
-# di VPS, di folder repo
-apt-get install -y nginx
+curl -fsSL https://bun.sh/install | bash
+source ~/.bashrc
+bun --version
+```
+
+Clone repo:
+
+```bash
+git clone https://github.com/premitry/email-hub.git
+cd email-hub
+```
+
+Install dependency:
+
+```bash
+bun install
+```
+
+Jalankan development server:
+
+```bash
+bun run dev
+```
+
+Build production:
+
+```bash
+bun run build
+```
+
+Preview build:
+
+```bash
+bun run preview
+```
+
+---
+
+## Environment Variables
+
+Buat file `.env` jika belum ada.
+
+Contoh:
+
+```env
+SUPABASE_URL="https://project-id.supabase.co"
+SUPABASE_PUBLISHABLE_KEY="your-supabase-publishable-key"
+VITE_SUPABASE_URL="https://project-id.supabase.co"
+VITE_SUPABASE_PUBLISHABLE_KEY="your-supabase-publishable-key"
+```
+
+Jangan masukkan service role key Supabase ke frontend.
+
+---
+
+## Deploy Panel ke VPS dengan systemd
+
+Contoh jika panel ingin dijalankan di VPS yang sama.
+
+Build dulu:
+
+```bash
 bun install
 bun run build
-
-# jalanin sebagai systemd service
-cat > /etc/systemd/system/mailcatch-panel.service <<'EOF'
-[Unit]
-Description=MailCatch panel
-After=network.target
-[Service]
-WorkingDirectory=/root/mailcatch
-Environment=PORT=3000
-Environment=SUPABASE_URL=...
-Environment=SUPABASE_PUBLISHABLE_KEY=...
-Environment=VITE_SUPABASE_URL=...
-Environment=VITE_SUPABASE_PUBLISHABLE_KEY=...
-ExecStart=/usr/local/bin/bun run .output/server/index.mjs
-Restart=always
-[Install]
-WantedBy=multi-user.target
-EOF
-systemctl enable --now mailcatch-panel
 ```
 
-Terus reverse proxy nginx di `panel.imapku.web.id` → `127.0.0.1:3000` +
-certbot untuk TLS. Detail Postgres/Auth self-host di luar scope README ini —
-disarankan tetap pakai Lovable Cloud untuk backend biar simpel.
+Buat service systemd:
+
+```bash
+cat > /etc/systemd/system/mailcatch-panel.service <<'SERVICEEOF'
+[Unit]
+Description=MailCatch Panel
+After=network.target
+
+[Service]
+WorkingDirectory=/root/email-hub
+Environment=PORT=3000
+Environment=SUPABASE_URL=https://project-id.supabase.co
+Environment=SUPABASE_PUBLISHABLE_KEY=your-supabase-publishable-key
+Environment=VITE_SUPABASE_URL=https://project-id.supabase.co
+Environment=VITE_SUPABASE_PUBLISHABLE_KEY=your-supabase-publishable-key
+ExecStart=/usr/local/bin/bun run .output/server/index.mjs
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+SERVICEEOF
+```
+
+Aktifkan service:
+
+```bash
+systemctl daemon-reload
+systemctl enable --now mailcatch-panel
+systemctl status mailcatch-panel
+```
+
+Panel akan berjalan di:
+
+```text
+http://127.0.0.1:3000
+```
 
 ---
 
-## 8. Operasional & troubleshooting
+## Reverse Proxy Nginx untuk Panel
 
-**Logs:**
+Install Nginx:
+
+```bash
+apt-get install -y nginx certbot python3-certbot-nginx
+```
+
+Buat konfigurasi:
+
+```bash
+cat > /etc/nginx/sites-available/mailcatch-panel <<'NGINXEOF'
+server {
+    listen 80;
+    server_name panel.example.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+NGINXEOF
+```
+
+Aktifkan config:
+
+```bash
+ln -s /etc/nginx/sites-available/mailcatch-panel /etc/nginx/sites-enabled/mailcatch-panel
+nginx -t
+systemctl reload nginx
+```
+
+Aktifkan HTTPS:
+
+```bash
+certbot --nginx -d panel.example.com
+```
+
+---
+
+## Perintah Operasional Penting
+
+Lihat log agent:
 
 ```bash
 journalctl -u mailcatch-agent -f
+```
+
+Lihat log Postfix:
+
+```bash
 journalctl -u postfix -f
+```
+
+Lihat log Dovecot:
+
+```bash
 journalctl -u dovecot -f
+```
+
+Lihat log mail umum:
+
+```bash
 tail -f /var/log/mail.log
 ```
 
-**Cek email masuk (raw Maildir):**
+Restart service:
 
 ```bash
-ls -la /var/mail/vhosts/imapku.web.id/user/new/
+systemctl restart postfix
+systemctl restart dovecot
+systemctl restart mailcatch-agent
 ```
 
-**Force retention cleanup manual** — panel: Settings → **Run retention now**,
-atau curl langsung ke agent:
+Reload service:
 
 ```bash
-curl -X POST http://127.0.0.1:8787/retention/apply \
-  -H "authorization: Bearer $(cat /etc/mailcatch/secret)" \
-  -H "content-type: application/json" \
-  -d '{"policies":[{"domain":"imapku.web.id","max_age_days":1,"max_count":100}]}'
+systemctl reload postfix
+systemctl reload dovecot
 ```
 
-**Reissue TLS cert** (certbot auto-renew tiap 12 jam via systemd timer):
+Cek konfigurasi Postfix:
+
+```bash
+postfix check
+postconf -n
+```
+
+Cek sertifikat SSL:
+
+```bash
+certbot certificates
+```
+
+Renew SSL manual:
 
 ```bash
 certbot renew --force-renewal
 systemctl reload postfix dovecot
 ```
 
-**Umum:**
+---
 
-| Gejala                                | Fix                                                            |
-| ------------------------------------- | -------------------------------------------------------------- |
-| Test connection panel gagal           | firewall block :8787, atau `SHARED_SECRET` salah paste         |
-| Email masuk spam                      | PTR belum di-set, atau SPF belum ada                           |
-| IMAP client "certificate invalid"     | certbot gagal — cek DNS `mail.<domain>` + port 80 open         |
-| `postmap: fatal ... vmailbox`         | jalankan `postmap /etc/postfix/vmailbox` manual, cek permission|
-| Email nggak muncul di panel           | `journalctl -u mailcatch-agent` — cek push ke panel error apa  |
-| Catch-all nggak nangkep               | pastiin toggle **catch-all** di mailbox aktif, lalu re-sync    |
+## Troubleshooting
+
+### 1. Email tidak masuk
+
+Cek DNS:
+
+```bash
+dig +short MX example.com
+dig +short mail.example.com
+```
+
+Cek port 25 dari luar server:
+
+```bash
+nc -zv mail.example.com 25
+```
+
+Cek log:
+
+```bash
+tail -f /var/log/mail.log
+journalctl -u postfix -f
+```
+
+Pastikan:
+
+- Port 25 sudah dibuka di firewall provider.
+- DNS MX sudah benar.
+- Domain sudah di-sync ke VPS dari panel.
+- Mailbox sudah dibuat dan di-sync ke VPS.
+
+### 2. Panel gagal connect ke agent
+
+Cek agent:
+
+```bash
+systemctl status mailcatch-agent
+curl -s http://127.0.0.1:8787/health
+```
+
+Pastikan:
+
+- Port 8787 terbuka.
+- Agent base URL benar.
+- Shared secret benar.
+- Tidak salah copy spasi atau karakter.
+
+### 3. SSL gagal dibuat
+
+Pastikan:
+
+- Record `A mail` sudah mengarah ke IP VPS.
+- Port 80 terbuka.
+- Tidak ada Nginx/Apache lain yang mengganggu proses certbot standalone.
+
+Coba ulang:
+
+```bash
+certbot certonly --standalone -d mail.example.com
+systemctl restart postfix dovecot
+```
+
+### 4. IMAP tidak bisa login
+
+Pastikan:
+
+- Port 993 terbuka.
+- Mailbox sudah dibuat di panel.
+- Mailbox sudah di-sync ke VPS.
+- Username memakai email lengkap.
+- Password benar.
+
+Cek Dovecot:
+
+```bash
+journalctl -u dovecot -f
+```
+
+### 5. Catch-all tidak bekerja
+
+Pastikan:
+
+- Catch-all aktif di mailbox.
+- Mailbox sudah di-sync ke VPS.
+- File alias Postfix sudah terupdate.
+
+Coba reload:
+
+```bash
+postmap /etc/postfix/valiases
+systemctl reload postfix
+```
 
 ---
 
-## Struktur repo
+## Struktur Repository
 
 ```text
-├── src/                          Panel (TanStack Start)
-│   ├── routes/_authenticated/    Dashboard, domains, mailboxes, inbox, settings
-│   ├── routes/api/public/agent/  ping + emails ingest (dari VPS)
-│   ├── lib/agent.functions.ts    Panel → agent RPC
-│   └── lib/dns.functions.ts      DoH lookup (DNS checker)
-├── supabase/migrations/          Schema + RLS
-├── agent/                        VPS agent (Bun + Hono)
-│   ├── src/index.ts              Endpoints + Postfix/Dovecot writers
-│   └── systemd/                  Service unit
-├── install.sh                    Installer VPS (Ubuntu 22/24)
-└── docs/AGENT.md                 Spec API panel ↔ agent
+email-hub/
+├── agent/                 # MailCatch Agent untuk VPS
+├── docs/                  # Dokumentasi tambahan
+├── public/                # Asset public
+├── src/                   # Source code panel web
+├── supabase/              # Migration dan konfigurasi Supabase
+├── install.sh             # Installer VPS
+├── package.json           # Dependency dan script project
+├── bun.lock               # Lock file Bun
+└── README.md              # Dokumentasi project
 ```
 
-## Endpoint agent
+---
 
-Semua endpoint (kecuali `/ingest` loopback) butuh `Authorization: Bearer <secret>`.
+## Keamanan
 
-| Method | Path                        | Fungsi                                                   |
-| ------ | --------------------------- | -------------------------------------------------------- |
-| GET    | `/health`                   | uptime + versi                                           |
-| POST   | `/domains/sync`             | tulis `vdomains` + reload postfix                        |
-| POST   | `/mailboxes/sync`           | tulis `users` + `vmailbox` + `valiases` + reload         |
-| POST   | `/mailboxes/reset-password` | ganti hash 1 user                                        |
-| POST   | `/retention/apply`          | delete Maildir tua / lebihi kuota                        |
-| POST   | `/register`                 | simpan `owner_id`                                        |
-| POST   | `/ingest`                   | loopback: Postfix pipe → parse MIME → push ke panel      |
+Rekomendasi keamanan:
 
-## Security notes
+- Jangan share shared secret agent.
+- Batasi akses port 8787 jika memungkinkan.
+- Gunakan HTTPS untuk panel.
+- Gunakan password mailbox yang kuat.
+- Jangan gunakan server ini sebagai open relay.
+- Pastikan firewall hanya membuka port yang dibutuhkan.
+- Jangan commit file `.env` yang berisi secret sensitif.
 
-- RLS aktif semua tabel, scoped ke `auth.uid()` + role terpisah di `user_roles`
-- Shared secret di panel disimpan sebagai SHA-256 hash (verifikasi push agent)
-  + raw (di-protect RLS per owner, dipakai panel manggil agent)
-- Postfix: `smtpd_recipient_restrictions = permit_mynetworks reject_unauth_destination` (no open relay)
-- Dovecot: `disable_plaintext_auth = yes` di :143 kalau cert aktif (STARTTLS wajib), :993 selalu TLS
-- **Rekomendasi production:** taruh agent :8787 di belakang nginx/caddy + TLS,
-  batesin `allowlist` IP ke IP panel doang
+---
+
+## Ringkasan Instalasi Cepat
+
+```bash
+ssh root@203.0.113.10
+apt-get update
+apt-get install -y git curl
+git clone https://github.com/premitry/email-hub.git mailcatch
+cd mailcatch
+bash install.sh mail.example.com https://panel.example.com
+systemctl status postfix dovecot mailcatch-agent
+curl -s http://127.0.0.1:8787/health
+```
+
+Setelah itu:
+
+1. Setting DNS domain.
+2. Masukkan Agent URL dan Shared Secret ke panel.
+3. Tambahkan domain di panel.
+4. Buat mailbox.
+5. Klik Sync to VPS.
+6. Test kirim email ke mailbox domain Anda.
+
+---
 
 ## Lisensi
 
-MIT
+Tambahkan informasi lisensi project di bagian ini jika sudah tersedia.
