@@ -18,7 +18,6 @@ import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedDomainsRouteImport } from './routes/_authenticated/domains'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedDomainsIndexRouteImport } from './routes/_authenticated/domains.index'
-import { Route as AuthenticatedDomainsIdRouteImport } from './routes/_authenticated/domains.$id'
 import { Route as ApiPublicAgentPingRouteImport } from './routes/api/public/agent/ping'
 import { Route as ApiPublicAgentEmailsRouteImport } from './routes/api/public/agent/emails'
 
@@ -67,11 +66,6 @@ const AuthenticatedDomainsIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedDomainsRoute,
   } as any)
-const AuthenticatedDomainsIdRoute = AuthenticatedDomainsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => AuthenticatedDomainsRoute,
-} as any)
 const ApiPublicAgentPingRoute = ApiPublicAgentPingRouteImport.update({
   id: '/api/public/agent/ping',
   path: '/api/public/agent/ping',
@@ -91,7 +85,6 @@ export interface FileRoutesByFullPath {
   '/inbox': typeof AuthenticatedInboxRoute
   '/mailboxes': typeof AuthenticatedMailboxesRoute
   '/settings': typeof AuthenticatedSettingsRoute
-  '/domains/$id': typeof AuthenticatedDomainsIdRoute
   '/domains/': typeof AuthenticatedDomainsIndexRoute
   '/api/public/agent/emails': typeof ApiPublicAgentEmailsRoute
   '/api/public/agent/ping': typeof ApiPublicAgentPingRoute
@@ -103,7 +96,6 @@ export interface FileRoutesByTo {
   '/inbox': typeof AuthenticatedInboxRoute
   '/mailboxes': typeof AuthenticatedMailboxesRoute
   '/settings': typeof AuthenticatedSettingsRoute
-  '/domains/$id': typeof AuthenticatedDomainsIdRoute
   '/domains': typeof AuthenticatedDomainsIndexRoute
   '/api/public/agent/emails': typeof ApiPublicAgentEmailsRoute
   '/api/public/agent/ping': typeof ApiPublicAgentPingRoute
@@ -118,7 +110,6 @@ export interface FileRoutesById {
   '/_authenticated/inbox': typeof AuthenticatedInboxRoute
   '/_authenticated/mailboxes': typeof AuthenticatedMailboxesRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
-  '/_authenticated/domains/$id': typeof AuthenticatedDomainsIdRoute
   '/_authenticated/domains/': typeof AuthenticatedDomainsIndexRoute
   '/api/public/agent/emails': typeof ApiPublicAgentEmailsRoute
   '/api/public/agent/ping': typeof ApiPublicAgentPingRoute
@@ -133,7 +124,6 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/mailboxes'
     | '/settings'
-    | '/domains/$id'
     | '/domains/'
     | '/api/public/agent/emails'
     | '/api/public/agent/ping'
@@ -145,7 +135,6 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/mailboxes'
     | '/settings'
-    | '/domains/$id'
     | '/domains'
     | '/api/public/agent/emails'
     | '/api/public/agent/ping'
@@ -159,7 +148,6 @@ export interface FileRouteTypes {
     | '/_authenticated/inbox'
     | '/_authenticated/mailboxes'
     | '/_authenticated/settings'
-    | '/_authenticated/domains/$id'
     | '/_authenticated/domains/'
     | '/api/public/agent/emails'
     | '/api/public/agent/ping'
@@ -238,13 +226,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDomainsIndexRouteImport
       parentRoute: typeof AuthenticatedDomainsRoute
     }
-    '/_authenticated/domains/$id': {
-      id: '/_authenticated/domains/$id'
-      path: '/$id'
-      fullPath: '/domains/$id'
-      preLoaderRoute: typeof AuthenticatedDomainsIdRouteImport
-      parentRoute: typeof AuthenticatedDomainsRoute
-    }
     '/api/public/agent/ping': {
       id: '/api/public/agent/ping'
       path: '/api/public/agent/ping'
@@ -263,12 +244,10 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedDomainsRouteChildren {
-  AuthenticatedDomainsIdRoute: typeof AuthenticatedDomainsIdRoute
   AuthenticatedDomainsIndexRoute: typeof AuthenticatedDomainsIndexRoute
 }
 
 const AuthenticatedDomainsRouteChildren: AuthenticatedDomainsRouteChildren = {
-  AuthenticatedDomainsIdRoute: AuthenticatedDomainsIdRoute,
   AuthenticatedDomainsIndexRoute: AuthenticatedDomainsIndexRoute,
 }
 
@@ -304,13 +283,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
